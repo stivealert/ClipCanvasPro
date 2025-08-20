@@ -1,0 +1,2456 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClipCanvas: Your Personal Media Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #000; 
+            --bg-secondary: #1f2937; 
+            --bg-tertiary: #374151;
+            --text-primary: #fff; 
+            --text-secondary: #d1d5db; 
+            --border-color: #4b5563;
+        }
+
+        html.light {
+            --bg-primary: #f9fafb; 
+            --bg-secondary: #ffffff; 
+            --bg-tertiary: #e5e7eb;
+            --text-primary: #111827; 
+            --text-secondary: #374151; 
+            --border-color: #d1d5db;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        .video-container, #profile-page-container {
+            scroll-snap-type: y mandatory;
+            overflow-y: scroll;
+            height: 100vh;
+            width: 100vw;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: var(--bg-primary);
+        }
+
+        .video-container::-webkit-scrollbar, #profile-page-container::-webkit-scrollbar { 
+            display: none; 
+        }
+
+        .video-container, #profile-page-container { 
+            -ms-overflow-style: none; 
+            scrollbar-width: none; 
+        }
+
+        .video-card {
+            scroll-snap-align: start;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            background-color: transparent;
+        }
+
+        .ambient-background {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-size: cover;
+            background-position: center;
+            filter: blur(50px) brightness(0.7);
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            will-change: opacity;
+        }
+
+        html.ambient-on .ambient-background { 
+            opacity: 1; 
+        }
+
+        video {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 12px;
+            transition: transform 0.3s ease, width 0.3s ease, height 0.3s ease;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+        }
+
+        .video-overlay {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+            z-index: 10;
+            pointer-events: none;
+            transition: background 0.3s ease;
+        }
+
+        .video-overlay > * { 
+            pointer-events: auto; 
+        }
+
+        .video-info { 
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.5); 
+            color: #fff; 
+        }
+
+        .video-info .user-details { 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+        }
+
+        .video-info .profile-pic { 
+            width: 40px; 
+            height: 40px; 
+            border-radius: 50%; 
+            object-fit: cover; 
+            border: 2px solid white; 
+        }
+
+        .video-info h3 { 
+            font-weight: 700; 
+            font-size: 1.1rem; 
+            cursor: pointer; 
+        }
+
+        .video-info p { 
+            font-size: 0.9rem; 
+            margin-top: 4px; 
+            max-width: 60vw; 
+        }
+
+        .video-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-end;
+        }
+
+        .control-button {
+            background-color: rgba(30, 30, 30, 0.4);
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s, opacity 0.3s ease;
+            backdrop-filter: blur(8px);
+        }
+
+        .control-button:hover { 
+            background-color: rgba(30, 30, 30, 0.6); 
+        }
+
+        .control-button svg { 
+            width: 24px; 
+            height: 24px; 
+            fill: white; 
+        }
+
+        .zoom-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .zoom-control-container {
+            display: grid;
+            grid-template-columns: repeat(4, 40px);
+            grid-template-rows: repeat(3, 40px);
+            gap: 5px;
+            background-color: rgba(30, 30, 30, 0.6);
+            border-radius: 12px;
+            backdrop-filter: blur(8px);
+            color: white;
+            font-weight: bold;
+            padding: 10px;
+            margin-right: 55px;
+        }
+
+        .zoom-btn, .pan-btn {
+            width: 40px;
+            height: 40px;
+            font-size: 1.5rem;
+            line-height: 40px;
+            text-align: center;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background-color: rgba(0,0,0,0.2);
+            transition: background-color 0.2s;
+        }
+
+        .pan-btn:hover, .zoom-btn:hover { 
+            background-color: rgba(0,0,0,0.4); 
+        }
+
+        .pan-btn svg { 
+            width: 20px; 
+            height: 20px; 
+        }
+
+        .zoom-display { 
+            font-size: 0.9rem; 
+            text-align: center; 
+            grid-column: 2; 
+            grid-row: 2; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+
+        .pan-up-btn { grid-column: 2; grid-row: 1; }
+        .pan-left-btn { grid-column: 1; grid-row: 2; }
+        .pan-right-btn { grid-column: 3; grid-row: 2; }
+        .pan-down-btn { grid-column: 2; grid-row: 3; }
+        .zoom-in-btn { grid-column: 4; grid-row: 1; }
+        .zoom-out-btn { grid-column: 4; grid-row: 3; }
+
+        #app-sidebar {
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            height: 100vh; 
+            width: 280px;
+            background-color: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+            backdrop-filter: blur(10px);
+            z-index: 50; 
+            padding: 20px; 
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out; 
+            display: flex; 
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+        }
+
+        #app-sidebar.open { 
+            transform: translateX(0); 
+        }
+
+        #sidebar-toggle {
+            position: fixed; 
+            top: 20px; 
+            left: 20px; 
+            z-index: 60;
+            background: rgba(0,0,0,0.5); 
+            border-radius: 50%; 
+            padding: 10px; 
+            cursor: pointer;
+        }
+
+        input[type="file"] { 
+            display: none; 
+        }
+
+        .modal-overlay {
+            position: fixed; 
+            inset: 0; 
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 100; 
+            display: none; 
+            align-items: center; 
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: var(--bg-secondary); 
+            border-radius: 8px; 
+            padding: 24px;
+            width: 90%; 
+            max-width: 450px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        .loader {
+            border: 4px solid #ccc; 
+            border-top: 4px solid #3498db;
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
+
+        #gallery-container { 
+            background-color: var(--bg-primary); 
+        }
+
+        #gallery-container::-webkit-scrollbar { 
+            width: 8px; 
+        }
+
+        #gallery-container::-webkit-scrollbar-track { 
+            background: var(--bg-tertiary); 
+        }
+
+        #gallery-container::-webkit-scrollbar-thumb { 
+            background-color: var(--border-color); 
+            border-radius: 20px; 
+        }
+
+        .toggle-label {
+            position: relative; 
+            display: inline-block; 
+            width: 50px; 
+            height: 28px;
+            background-color: var(--bg-tertiary); 
+            border-radius: 9999px;
+            transition: background-color 0.2s; 
+            cursor: pointer;
+        }
+
+        .toggle-label::after {
+            content: ''; 
+            position: absolute; 
+            top: 4px; 
+            left: 4px;
+            width: 20px; 
+            height: 20px; 
+            background-color: white;
+            border-radius: 50%; 
+            transition: transform 0.2s;
+        }
+
+        .toggle-checkbox { 
+            display: none; 
+        }
+
+        .toggle-checkbox:checked + .toggle-label { 
+            background-color: #38a169; 
+        }
+
+        .toggle-checkbox:checked + .toggle-label::after { 
+            transform: translateX(22px); 
+        }
+
+        .playlist-item.is-default .delete-playlist-btn { 
+            display: none; 
+        }
+
+        .playlist-item .play-icon { 
+            display: block; 
+        }
+
+        .playlist-item .delete-playlist-btn { 
+            display: none; 
+        }
+
+        #playlist-list.edit-mode .playlist-item .play-icon { 
+            display: none; 
+        }
+
+        #playlist-list.edit-mode .playlist-item .delete-playlist-btn { 
+            display: block; 
+        }
+
+        .gallery-thumb-container.in-edit-mode::after {
+            content: ''; 
+            position: absolute; 
+            inset: 0;
+            background-color: rgba(0,0,0,0.5); 
+            border: 2px solid transparent; 
+            border-radius: 8px;
+        }
+
+        .gallery-thumb-container.selected::after { 
+            border-color: #3b82f6; 
+        }
+
+        .gallery-thumb-container .selection-checkbox {
+            display: none; 
+            position: absolute; 
+            top: 8px; 
+            right: 8px;
+            width: 20px; 
+            height: 20px; 
+            z-index: 10;
+        }
+
+        .gallery-thumb-container.in-edit-mode .selection-checkbox { 
+            display: block; 
+        }
+
+        .media-type-icon {
+            position: absolute; 
+            top: 8px; 
+            left: 8px;
+            width: 20px; 
+            height: 20px;
+            background-color: rgba(0,0,0,0.5);
+            border-radius: 50%;
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+        }
+
+        .media-type-icon svg { 
+            width: 12px; 
+            height: 12px; 
+            fill: white; 
+        }
+
+        select, option, input[type="text"], textarea, input[type="number"] {
+            color: var(--text-primary);
+            background-color: var(--bg-secondary);
+        }
+
+        ::placeholder { 
+            color: var(--text-secondary); 
+            opacity: 1; 
+        }
+
+        #feed-switcher button { 
+            transition: background-color 0.2s, color 0.2s; 
+        }
+
+        .profile-tab { 
+            padding: 8px 16px; 
+            cursor: pointer; 
+            border-bottom: 2px solid transparent; 
+            transition: border-color 0.2s; 
+        }
+
+        .profile-tab.active { 
+            border-color: var(--text-primary); 
+        }
+
+        /* Lock Mode Styles */
+        .video-card.lock-mode .video-overlay { 
+            background: transparent; 
+        }
+
+        .video-card.lock-mode .video-info, 
+        .video-card.lock-mode .video-controls > *:not(.lock-btn) { 
+            opacity: 0; 
+            pointer-events: none; 
+        }
+
+        .video-card.lock-mode .lock-btn { 
+            opacity: 0.5; 
+        }
+
+        .video-card.lock-mode video { 
+            pointer-events: none; 
+        }
+
+        /* Mobile Optimizations */
+        @media (max-width: 640px) {
+            .video-controls { gap: 12px; }
+            .control-button { width: 44px; height: 44px; }
+            .control-button svg { width: 20px; height: 20px; }
+            .video-info p { font-size: 0.8rem; max-width: 70vw; }
+            .video-info h3 { font-size: 1rem; }
+            .zoom-control-container { transform: scale(0.9); transform-origin: bottom right; }
+            .video-overlay { padding: 15px; }
+        }
+
+        /* Style for recent folders list */
+        .recent-folder-item { 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            padding: 8px; 
+            background-color: var(--bg-tertiary); 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: background-color 0.2s; 
+        }
+
+        .recent-folder-item:hover { 
+            background-color: var(--border-color); 
+        }
+
+        .recent-folder-item svg { 
+            flex-shrink: 0; 
+            width: 20px; 
+            height: 20px; 
+        }
+
+        /* New style for seek indicator */
+        .seek-indicator {
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.6); 
+            color: white; 
+            padding: 12px 20px; 
+            border-radius: 24px;
+            font-size: 1.2rem; 
+            font-weight: bold; 
+            z-index: 20; 
+            opacity: 0;
+            transition: opacity 0.5s ease-out; 
+            pointer-events: none;
+        }
+
+        .seek-indicator.show { 
+            opacity: 1; 
+        }
+
+        /* Unified Sidebar Button Style */
+        .sidebar-btn {
+            display: flex; 
+            align-items: center; 
+            justify-content: flex-start;
+            gap: 0.75rem; 
+            width: 100%; 
+            padding: 0.5rem 0.75rem; 
+            border-radius: 0.5rem;
+            font-weight: 500; 
+            font-size: 0.875rem; 
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary); 
+            transition: background-color 0.2s; 
+            cursor: pointer; 
+            border: none;
+        }
+
+        .sidebar-btn:hover { 
+            background-color: var(--border-color); 
+        }
+
+        .sidebar-btn svg { 
+            width: 20px; 
+            height: 20px; 
+            flex-shrink: 0; 
+        }
+
+        /* Admin Dashboard Styles */
+        .stat-card {
+            background-color: var(--bg-tertiary);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-card-icon {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .stat-card-icon svg {
+            width: 1.5rem;
+            height: 1.5rem;
+            fill: white;
+        }
+
+        .stat-card-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .stat-card-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        /* === ANDROID-STYLE SETTINGS PANEL === */
+        #settings-modal-overlay .modal-content {
+            padding: 0;
+            background-color: var(--bg-primary);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .settings-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .settings-header h3 {
+             font-size: 1.25rem;
+             font-weight: 600;
+        }
+
+        .settings-search-wrapper {
+            padding: 1rem 1.5rem;
+            flex-shrink: 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .settings-search-bar {
+            width: 100%;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 9999px;
+            padding: 0.5rem 1rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+        .settings-search-bar:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px #3b82f6;
+        }
+
+        .settings-content {
+            overflow-y: auto;
+            padding: 0 1.5rem 1.5rem 1.5rem;
+        }
+        .settings-content::-webkit-scrollbar { width: 6px; }
+        .settings-content::-webkit-scrollbar-track { background: transparent; }
+        .settings-content::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 20px; }
+
+
+        .settings-section-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            padding-left: 0.5rem;
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            transition: background-color 0.2s;
+        }
+        .setting-item:hover {
+            background-color: var(--bg-tertiary);
+        }
+        
+        .setting-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .setting-icon svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+        
+        .icon-bg-blue { background-color: #3b82f6; }
+        .icon-bg-green { background-color: #10b981; }
+        .icon-bg-purple { background-color: #8b5cf6; }
+        .icon-bg-yellow { background-color: #f59e0b; }
+        .icon-bg-cyan { background-color: #06b6d4; }
+        .icon-bg-red { background-color: #ef4444; }
+        .icon-bg-orange { background-color: #f97316; }
+        .icon-bg-teal { background-color: #14b8a6; }
+
+
+        .setting-item-label {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .setting-item-label strong {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .setting-item-label span {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 0.125rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .setting-item-control {
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .shortcut-key {
+            background-color: var(--bg-secondary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            border: 1px solid var(--border-color);
+            font-family: monospace;
+            font-size: 0.9rem;
+            text-transform: capitalize;
+            min-width: 90px;
+            text-align: center;
+            display: inline-block;
+        }
+
+        .remap-btn {
+            background-color: var(--bg-secondary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .remap-btn:hover {
+            background-color: var(--border-color);
+            color: var(--text-primary);
+        }
+        .remap-btn.is-listening {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+
+    </style>
+</head>
+<body class="transition-colors duration-300">
+    <div id="app-loader" class="fixed inset-0 bg-black flex flex-col items-center justify-center z-[200]">
+        <div class="loader"></div>
+        <p class="mt-4 text-lg">Loading App Data...</p>
+    </div>
+
+    <div id="feed-switcher" class="fixed top-5 left-1/2 -translate-x-1/2 z-20 flex gap-2 p-1 bg-black/30 backdrop-blur-sm rounded-full hidden">
+        <button id="social-feed-btn" class="px-4 py-1 rounded-full text-sm font-semibold">Social</button>
+        <button id="local-feed-btn" class="px-4 py-1 rounded-full text-sm font-semibold">Local</button>
+        <button id="folder-feed-btn" class="px-4 py-1 rounded-full text-sm font-semibold hidden">Folder</button>
+    </div>
+
+    <div id="video-container" class="video-container hidden"></div>
+    <div id="gallery-container" class="w-full h-screen p-4 pt-20 overflow-y-auto hidden">
+        <div id="gallery-header" class="flex justify-center items-center mb-4 relative">
+            <h2 id="gallery-title" class="text-2xl font-bold text-center">All Videos</h2>
+            <div id="gallery-edit-controls" class="absolute right-0 space-x-2"></div>
+        </div>
+        <div id="gallery-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
+    </div>
+    <div id="profile-page-container" class="w-full h-screen p-4 pt-20 overflow-y-auto hidden"></div>
+
+    <button id="sidebar-toggle">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+    </button>
+
+    <aside id="app-sidebar">
+        <h2 class="text-2xl font-bold mb-6 text-center">ClipCanvas</h2>
+        <div class="space-y-4">
+            <div>
+                <h3 class="text-sm font-semibold text-text-secondary px-3 mb-2">PLAYER</h3>
+                <div class="space-y-2">
+                    <button id="play-from-folder-btn" class="sidebar-btn">
+                        <span>Play From Folder</span>
+                    </button>
+                </div>
+            </div>
+            <div id="recent-folders-section" class="hidden">
+                 <h3 class="text-sm font-semibold text-text-secondary px-3 mb-2">RECENT</h3>
+                 <div id="recent-folders-list" class="space-y-2 max-h-32 overflow-y-auto"></div>
+            </div>
+            <div>
+                <h3 class="text-sm font-semibold text-text-secondary px-3 mb-2">LIBRARY</h3>
+                <div class="space-y-2">
+                    <input id="file-upload" type="file" accept="video/*,image/*" multiple/>
+                    <button id="add-to-local-feed-btn" class="sidebar-btn">
+                        <span>Add to Local Feed</span>
+                    </button>
+                    <button id="view-all-btn" class="sidebar-btn">
+                        <span>View All Media</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="flex-grow overflow-y-auto pr-2 mt-4 border-t border-border-color pt-4">
+            <div class="flex justify-between items-center mb-2 px-3">
+                <h3 class="text-sm font-semibold text-text-secondary">PLAYLISTS</h3>
+                <button id="edit-playlists-btn" class="text-xs text-blue-400 hover:text-blue-300 font-semibold">EDIT</button>
+            </div>
+            <div id="playlist-list" class="space-y-2"></div>
+             <button id="create-playlist-btn" class="sidebar-btn mt-2">
+                <span>Create New Playlist</span>
+            </button>
+        </div>
+        <div class="mt-4 pt-4 border-t border-border-color space-y-2">
+            <button id="admin-panel-btn" class="sidebar-btn">
+                 <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path></svg>
+                <span>Admin Panel</span>
+            </button>
+            <button id="settings-btn" class="sidebar-btn">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12-.64l2 3.46c.12.22.39.3.61-.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"></path></svg>
+                <span>Settings</span>
+            </button>
+        </div>
+    </aside>
+
+    <div id="playlist-modal-overlay" class="modal-overlay"></div>
+    <div id="reset-modal-overlay" class="modal-overlay"></div>
+    <div id="prompt-modal-overlay" class="modal-overlay"></div>
+    <div id="settings-modal-overlay" class="modal-overlay"></div>
+    <div id="admin-panel-overlay" class="modal-overlay"></div>
+    <div id="image-viewer-overlay" class="modal-overlay p-4"></div>
+    <div id="toast-notification" class="fixed bottom-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-lg opacity-0 translate-y-3 transition-all duration-300 z-[150]"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- SVG ICONS ---
+            const ICONS = {
+                PLAY: `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`,
+                PAUSE: `<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`,
+                ADD_TO_PLAYLIST: `<svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg>`,
+                FULLSCREEN: `<svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>`,
+                ORIENTATION: `<svg viewBox="0 0 24 24"><path d="M7.47 2.49C4.22 5.43 3.44 9.87 5.61 13.5l-1.95 1.13 3.59 6.21 6.21-3.59-1.95-1.13C9.42 12.8 9.92 8.64 12.5 6.07c2.58-2.58 6.75-3.08 9.66-.91l-1.44-1.44L22.16 2l-1.41 1.41-1.44-1.44c-3.11-2.4-7.56-1.79-10.84.42z"/></svg>`,
+                PLAYLIST_PLAY: `<svg class="w-5 h-5 play-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
+                DELETE: `<svg class="w-5 h-5 delete-playlist-btn text-red-400 hover:text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`,
+                SAVE: `<svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15l-5-2.18L7 18V5h10v13z"/></svg>`,
+                WATCH_LATER: `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.5 14H11v-6h2v4h1.5v2z"/></svg>`,
+                BACK: `<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>`,
+                ZOOM: `<svg viewBox="0 0 24 24" fill="white"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM10 9h-1V8h1V7h1v1h1v1h-1v1h-1z"/></svg>`,
+                VIDEO_ICON: `<svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"></path></svg>`,
+                PHOTO_ICON: `<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"></path></svg>`,
+                EDIT: `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"></path></svg>`,
+                ARROW_UP: `<svg fill="currentColor" viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>`,
+                ARROW_DOWN: `<svg fill="currentColor" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6 6z"/></svg>`,
+                ARROW_LEFT: `<svg fill="currentColor" viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>`,
+                ARROW_RIGHT: `<svg fill="currentColor" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>`,
+                LOCK: `<svg fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>`,
+                UNLOCK: `<svg fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h2c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>`,
+                FOLDER: `<svg fill="currentColor" viewBox="0 0 24 24"><path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.09.9 2 2 2h16c1.09 0 2-.91 2-2V8c0-1.11-.91-2-2-2h-8l-2-2z"/></svg>`,
+                UPLOAD: `<svg fill="currentColor" viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-8-8-8 8h4v6zm-4 2h14v2H5v-2z"/></svg>`,
+                GALLERY: `<svg fill="currentColor" viewBox="0 0 24 24"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></svg>`,
+                PLUS_CIRCLE: `<svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>`,
+                PALETTE: `<svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4c-.83 0-1.5-.67-1.5-1.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>`,
+                SLIDERS: `<svg viewBox="0 0 24 24"><path d="M4 21h4v-4H4v4zm0-10h4V3H4v8zm4 8h4v-8H8v8zm0-12h4V3H8v4zm4 12h4v-4h-4v4zm0-8h4V7h-4v4zm4-4h4V3h-4v4zm0 8h4v-4h-4v4zm0 8h4v-8h-4v8z"/></svg>`,
+                LAYOUT: `<svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zm8 0h6v6h-6zM4 14h6v6H4zm8 0h6v6h-6z"/></svg>`,
+                KEYBOARD: `<svg viewBox="0 0 24 24"><path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>`,
+                WARNING: `<svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>`,
+                USERS: `<svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>`,
+                MEDIA_FILES: `<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V6h5.17l2 2H20v10z"/></svg>`,
+                PLAYLISTS_ICON: `<svg viewBox="0 0 24 24"><path d="M4 10h12v2H4zm0-4h12v2H4zm0 8h8v2H4zm10 0v6l5-3z"/></svg>`,
+                LOCAL_STORAGE: `<svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>`,
+                EXPORT: `<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`,
+                IMPORT: `<svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>`,
+                // --- NEW ICONS FOR ANDROID-STYLE SETTINGS ---
+                THEME: `<svg viewBox="0 0 24 24"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2V4a8 8 0 1 0 0 16z"/></svg>`,
+                AMBIENT: `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8-8-3.59-8-8zm4-2.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5S6.5 11.83 6.5 11 7.17 9.5 8 9.5zm8 0c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5.67-1.5 1.5-1.5zm-4 5c1.66 0 3-1.34 3-3H9c0 1.66 1.34 3 3 3z"/></svg>`,
+                HOME: `<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>`,
+                SOUND: `<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>`,
+                SCROLL: `<svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>`,
+                TIMER: `<svg viewBox="0 0 24 24"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>`,
+                SEARCH: `<svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>`,
+            };
+
+            // --- DOM Elements ---
+            const dom = {
+                html: document.documentElement,
+                appLoader: document.getElementById('app-loader'),
+                videoContainer: document.getElementById('video-container'),
+                galleryContainer: document.getElementById('gallery-container'),
+                galleryHeader: document.getElementById('gallery-header'),
+                galleryGrid: document.getElementById('gallery-grid'),
+                galleryTitle: document.getElementById('gallery-title'),
+                galleryEditControls: document.getElementById('gallery-edit-controls'),
+                profilePageContainer: document.getElementById('profile-page-container'),
+                fileUpload: document.getElementById('file-upload'),
+                addToLocalFeedBtn: document.getElementById('add-to-local-feed-btn'),
+                playFromFolderBtn: document.getElementById('play-from-folder-btn'),
+                createPlaylistBtn: document.getElementById('create-playlist-btn'),
+                playlistList: document.getElementById('playlist-list'),
+                editPlaylistsBtn: document.getElementById('edit-playlists-btn'),
+                viewAllBtn: document.getElementById('view-all-btn'),
+                sidebar: document.getElementById('app-sidebar'),
+                sidebarToggle: document.getElementById('sidebar-toggle'),
+                settingsBtn: document.getElementById('settings-btn'),
+                adminPanelBtn: document.getElementById('admin-panel-btn'),
+                playlistModalOverlay: document.getElementById('playlist-modal-overlay'),
+                resetModalOverlay: document.getElementById('reset-modal-overlay'),
+                promptModalOverlay: document.getElementById('prompt-modal-overlay'),
+                settingsModalOverlay: document.getElementById('settings-modal-overlay'),
+                adminPanelOverlay: document.getElementById('admin-panel-overlay'),
+                imageViewerOverlay: document.getElementById('image-viewer-overlay'),
+                toast: document.getElementById('toast-notification'),
+                feedSwitcher: document.getElementById('feed-switcher'),
+                socialFeedBtn: document.getElementById('social-feed-btn'),
+                localFeedBtn: document.getElementById('local-feed-btn'),
+                folderFeedBtn: document.getElementById('folder-feed-btn'),
+                recentFoldersSection: document.getElementById('recent-folders-section'),
+                recentFoldersList: document.getElementById('recent-folders-list'),
+            };
+
+            // --- App State ---
+            const appState = {
+                db: null,
+                allMedia: [],
+                allUsers: [],
+                playlists: {},
+                settings: {
+                    isGloballyMuted: false, isAutoScrolling: false, theme: 'dark',
+                    ambientMode: false, defaultView: 'gallery', currentRotation: 0, currentZoom: 1,
+                    currentPanX: 0, currentPanY: 0, isLockModeActive: false,
+                    zoomControlsTimeout: 3,
+                    visibleButtons: {
+                        watchLater: true, save: true, orientation: true,
+                        zoom: true, fullscreen: true,
+                    },
+                    shortcuts: {
+                        lock: 'l', fullscreen: 'f', playPause: ' ', zoomIn: '=', zoomOut: '-',
+                        panUp: 'PageUp', panDown: 'PageDown', panLeft: 'ArrowLeft', panRight: 'ArrowRight',
+                        nextVideo: 'ArrowDown', prevVideo: 'ArrowUp', rotate: 'r', save: 's', addPlaylist: 'a',
+                        seekForward: 'ArrowRight', seekBackward: 'ArrowLeft'
+                    }
+                },
+                currentFeed: 'social',
+                isPlaylistEditMode: false,
+                isGalleryEditMode: false,
+                currentPlaylist: null,
+                intersectionObserver: null,
+                activeCard: null,
+                currentlyDisplayedVideos: [],
+                activeVideoObjectURLs: new Map(),
+                previousView: null,
+                directoryHandle: null,
+                folderFileHandles: [],
+                folderFileIterator: null,
+                isLoadingMoreFolderFiles: false,
+                recentFolders: [],
+                adminChart: null,
+            };
+
+            // --- IndexedDB ---
+            const dbManager = {
+                DB_NAME: 'ReelsCloneDB_V6', DB_VERSION: 2, MEDIA_STORE: 'media',
+                PLAYLIST_STORE: 'playlists', SETTINGS_STORE: 'settings', USER_STORE: 'users',
+                openDB: function() {
+                    return new Promise((resolve, reject) => {
+                        const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
+                        request.onupgradeneeded = (e) => {
+                            const db = e.target.result;
+                            if (!db.objectStoreNames.contains(this.MEDIA_STORE)) db.createObjectStore(this.MEDIA_STORE, { keyPath: 'id' });
+                            if (!db.objectStoreNames.contains(this.PLAYLIST_STORE)) db.createObjectStore(this.PLAYLIST_STORE, { keyPath: 'id' });
+                            if (!db.objectStoreNames.contains(this.SETTINGS_STORE)) db.createObjectStore(this.SETTINGS_STORE, { keyPath: 'id' });
+                            if (!db.objectStoreNames.contains(this.USER_STORE)) db.createObjectStore(this.USER_STORE, { keyPath: 'id' });
+                        };
+                        request.onsuccess = (e) => resolve(e.target.result);
+                        request.onerror = (e) => reject(`Database error: ${e.target.error}`);
+                    });
+                },
+                get: (storeName, key) => new Promise((resolve, reject) => {
+                    const req = dbManager.getStore(storeName, 'readonly').get(key);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                }),
+                getAll: (storeName) => new Promise((resolve, reject) => {
+                    const req = dbManager.getStore(storeName, 'readonly').getAll();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                }),
+                put: (storeName, item) => new Promise((resolve, reject) => {
+                    const req = dbManager.getStore(storeName, 'readwrite').put(item);
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                }),
+                delete: (storeName, key) => new Promise((resolve, reject) => {
+                    const req = dbManager.getStore(storeName, 'readwrite').delete(key);
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                }),
+                clear: (storeName) => new Promise((resolve, reject) => {
+                    const req = dbManager.getStore(storeName, 'readwrite').clear();
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                }),
+                getStore: (storeName, mode) => appState.db.transaction(storeName, mode).objectStore(storeName),
+            };
+
+            // --- Data & Settings Management ---
+            async function loadData() {
+                try {
+                    appState.db = await dbManager.openDB();
+                    const [media, users, playlistsData, settingsData] = await Promise.all([
+                        dbManager.getAll(dbManager.MEDIA_STORE),
+                        dbManager.getAll(dbManager.USER_STORE),
+                        dbManager.get(dbManager.PLAYLIST_STORE, 'main'),
+                        dbManager.get(dbManager.SETTINGS_STORE, 'user-settings'),
+                    ]);
+                    appState.allMedia = media;
+                    appState.allUsers = users;
+                    appState.playlists = playlistsData ? playlistsData.data : {};
+                    if (settingsData) {
+                        appState.settings = {
+                            ...appState.settings,
+                            ...settingsData.data,
+                            visibleButtons: { ...appState.settings.visibleButtons, ...(settingsData.data.visibleButtons || {}) },
+                            shortcuts: { ...appState.settings.shortcuts, ...(settingsData.data.shortcuts || {}) }
+                        };
+                    }
+                    if (appState.allUsers.length === 0) await seedInitialData();
+                    await ensureDefaultPlaylists();
+                    await saveSettings();
+                } catch (error) {
+                    console.error("Failed to load data:", error);
+                    dom.appLoader.innerHTML = `<p class="text-red-500">Error: Could not load the database.</p>`;
+                }
+            }
+
+            async function saveSettings() { await dbManager.put(dbManager.SETTINGS_STORE, { id: 'user-settings', data: appState.settings }); }
+            async function savePlaylists() { await dbManager.put(dbManager.PLAYLIST_STORE, { id: 'main', data: appState.playlists }); }
+
+            async function seedInitialData() {
+                const defaultUser = { id: `user-${Date.now()}`, username: '@bunny', bio: 'A giant rabbit with a heart bigger than himself.', profilePictureUrl: null };
+                await dbManager.put(dbManager.USER_STORE, defaultUser);
+                appState.allUsers.push(defaultUser);
+
+                const initialMedia = [
+                    { id: 'remote-1', userId: defaultUser.id, description: 'Big Buck Bunny tells the story of a giant rabbit.', url: 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', type: 'video' },
+                    { id: 'remote-2', userId: defaultUser.id, description: 'A short animated film by the Blender Institute.', url: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', type: 'video' },
+                    { id: 'remote-3', userId: defaultUser.id, description: 'The first Blender Open Movie from 2006.', url: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', type: 'video' },
+                    { id: 'remote-4', userId: defaultUser.id, description: 'A spectacular journey through the city.', url: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', type: 'video' },
+                    { id: 'remote-5', userId: defaultUser.id, description: 'Fun moments with friends.', url: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4', type: 'video' },
+                    { id: 'remote-6', userId: defaultUser.id, description: 'A story of two friends and their joyful moments.', url: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4', type: 'video' },
+                    { id: 'remote-7', userId: defaultUser.id, description: 'Another classic Blender Foundation short film, Sintel.', url: 'https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4', type: 'video' },
+                    { id: 'remote-8', userId: defaultUser.id, description: 'The story of a teenage girl and her dog.', url: 'https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4', type: 'video' }
+                ];
+                const mediaPromises = initialMedia.map(async (mediaData) => {
+                    const thumbnailUrl = await generateThumbnail(mediaData);
+                    const mediaWithThumb = { ...mediaData, thumbnailUrl };
+                    await dbManager.put(dbManager.MEDIA_STORE, mediaWithThumb);
+                    return mediaWithThumb;
+                });
+                appState.allMedia = await Promise.all(mediaPromises);
+            }
+
+            async function ensureDefaultPlaylists() {
+                 let updated = false;
+                 if (!appState.playlists['Watch Later']) { appState.playlists['Watch Later'] = []; updated = true; }
+                 if (!appState.playlists['Saved']) { appState.playlists['Saved'] = []; updated = true; }
+                 if (updated) await savePlaylists();
+            }
+
+            async function addMedia(file, userId) {
+                const type = file.type.startsWith('image') ? 'image' : 'video';
+                const newMedia = {
+                    id: `local-${Date.now()}-${file.name}`, userId: userId,
+                    description: file.name, blob: file, type: type
+                };
+
+                if (type === 'video') {
+                    newMedia.thumbnailUrl = await generateThumbnail(newMedia);
+                } else {
+                    newMedia.thumbnailUrl = await new Promise(resolve => {
+                        const reader = new FileReader();
+                        reader.onload = e => resolve(e.target.result);
+                        reader.readAsDataURL(file);
+                    });
+                    newMedia.url = newMedia.thumbnailUrl;
+                }
+
+                appState.allMedia.push(newMedia);
+                await dbManager.put(dbManager.MEDIA_STORE, newMedia);
+            }
+
+            async function resetAppData() {
+                try {
+                    await Promise.all([
+                        dbManager.clear(dbManager.MEDIA_STORE), dbManager.clear(dbManager.USER_STORE),
+                        dbManager.clear(dbManager.PLAYLIST_STORE), dbManager.clear(dbManager.SETTINGS_STORE)
+                    ]);
+                    location.reload();
+                } catch (error) {
+                    console.error("Failed to reset app data:", error);
+                    showToast("Error resetting data.", 'error');
+                }
+            }
+
+            // --- UI Rendering & Modals ---
+            function renderVideos(videoArray, startIndex = 0) {
+                appState.previousView = {name: 'feed', data: videoArray, index: startIndex};
+                cleanupVideoObjectURLs();
+                dom.videoContainer.innerHTML = '';
+                if (appState.intersectionObserver) appState.intersectionObserver.disconnect();
+                appState.activeCard = null;
+                dom.galleryContainer.classList.add('hidden');
+                dom.profilePageContainer.classList.add('hidden');
+                dom.videoContainer.classList.remove('hidden');
+                dom.feedSwitcher.classList.remove('hidden');
+
+                if (videoArray.length === 0) {
+                    let message = "No videos in this feed.<br>Add some via the sidebar or admin panel.";
+                    if(appState.currentFeed === 'folder') {
+                        message = "No videos found in the selected folder.";
+                    }
+                    dom.videoContainer.innerHTML = `<div class="w-full h-full flex items-center justify-center text-center text-text-secondary"><p>${message}</p></div>`;
+                    return;
+                }
+
+                videoArray.forEach(videoData => dom.videoContainer.appendChild(createVideoCard(videoData)));
+
+                applyGlobalLockMode();
+
+                setupIntersectionObserver();
+                if (dom.videoContainer.children[startIndex]) {
+                    dom.videoContainer.children[startIndex].scrollIntoView();
+                    updateAmbientBackground(videoArray[startIndex]);
+                }
+            }
+
+            async function renderGallery(mediaArray, title = 'All Media') {
+                appState.previousView = {name: 'gallery', data: mediaArray, title: title};
+                if (document.fullscreenElement) await document.exitFullscreen();
+                appState.currentlyDisplayedVideos = mediaArray.filter(m => m.type === 'video');
+                appState.currentPlaylist = title;
+                dom.galleryTitle.textContent = title;
+                dom.videoContainer.classList.add('hidden');
+                dom.profilePageContainer.classList.add('hidden');
+                dom.galleryContainer.classList.remove('hidden');
+                dom.feedSwitcher.classList.add('hidden');
+                dom.galleryGrid.innerHTML = '';
+
+                toggleGalleryEditMode(false);
+
+                if (mediaArray.length === 0) {
+                    dom.galleryGrid.innerHTML = `<p class="col-span-full text-center text-secondary">This is empty.</p>`;
+                    return;
+                }
+                mediaArray.forEach((mediaData) => {
+                    const user = appState.allUsers.find(u => u.id === mediaData.userId);
+                    const thumbContainer = document.createElement('div');
+                    thumbContainer.className = 'gallery-thumb-container relative aspect-[9/16] bg-tertiary rounded-lg overflow-hidden cursor-pointer group';
+                    thumbContainer.dataset.mediaId = mediaData.id;
+
+                    const mediaIcon = mediaData.type === 'video' ? ICONS.VIDEO_ICON : ICONS.PHOTO_ICON;
+
+                    thumbContainer.innerHTML = `
+                        <input type="checkbox" class="selection-checkbox">
+                        <div class="media-type-icon">${mediaIcon}</div>
+                        ${mediaData.thumbnailUrl
+                            ? `<img src="${mediaData.thumbnailUrl}" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" alt="Thumbnail">`
+                            : `<div class="absolute inset-0 flex items-center justify-center"><div class="loader"></div></div>`
+                        }
+                        <div class="absolute inset-0 bg-black bg-opacity-20 group-hover:bg-opacity-40"></div>
+                        <p class="absolute bottom-2 left-2 text-xs font-semibold p-1 bg-black bg-opacity-50 rounded">${user ? user.username : '@local_user'}</p>
+                    `;
+                    thumbContainer.onclick = () => {
+                        if (appState.isGalleryEditMode) {
+                            thumbContainer.classList.toggle('selected');
+                            thumbContainer.querySelector('.selection-checkbox').checked = thumbContainer.classList.contains('selected');
+                        } else {
+                            if (mediaData.type === 'video') {
+                                const videosOnly = mediaArray.filter(m => m.type === 'video');
+                                const videoIndex = videosOnly.findIndex(v => v.id === mediaData.id);
+                                renderVideos(videosOnly, videoIndex);
+                            } else {
+                                showImageModal(mediaData.url || mediaData.thumbnailUrl);
+                            }
+                        }
+                    };
+                    dom.galleryGrid.appendChild(thumbContainer);
+                });
+            }
+
+            function generateThumbnail(videoData) {
+                return new Promise(async (resolve) => {
+                    let videoUrl;
+                    let shouldRevoke = false;
+
+                    if (videoData.blob) {
+                        videoUrl = URL.createObjectURL(videoData.blob);
+                        shouldRevoke = true;
+                    } else if (videoData.fileHandle) {
+                        const file = await videoData.fileHandle.getFile();
+                        videoUrl = URL.createObjectURL(file);
+                        shouldRevoke = true;
+                    } else {
+                        videoUrl = videoData.url;
+                    }
+
+                    const video = document.createElement('video');
+                    video.src = videoUrl;
+                    video.crossOrigin = "anonymous";
+                    video.muted = true;
+                    video.preload = 'metadata';
+                    const cleanup = () => {
+                        video.remove();
+                        if (shouldRevoke) URL.revokeObjectURL(videoUrl);
+                    };
+                    video.addEventListener('seeked', () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth || 360; canvas.height = video.videoHeight || 640;
+                        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.8));
+                        cleanup();
+                    }, { once: true });
+                    video.addEventListener('loadeddata', () => video.currentTime = 1, { once: true });
+                    video.addEventListener('error', () => {
+                        resolve(`https://placehold.co/360x640/1a1a1a/ffffff?text=Error`);
+                        cleanup();
+                    }, { once: true });
+                });
+            }
+
+            function renderPlaylists() {
+                dom.playlistList.innerHTML = '';
+                dom.playlistList.classList.toggle('edit-mode', appState.isPlaylistEditMode);
+                dom.editPlaylistsBtn.textContent = appState.isPlaylistEditMode ? 'DONE' : 'EDIT';
+
+                Object.keys(appState.playlists).forEach(name => {
+                    const isDefault = name === 'Watch Later' || name === 'Saved';
+                    const playlistItem = document.createElement('div');
+                    playlistItem.className = `playlist-item flex items-center justify-between p-2 bg-tertiary rounded hover:bg-border-color text-sm transition-colors cursor-pointer ${isDefault ? 'is-default' : ''}`;
+                    playlistItem.innerHTML = `
+                        <span>${name} (${appState.playlists[name].length})</span>
+                        <div class="flex items-center">
+                            ${ICONS.PLAYLIST_PLAY}
+                            ${ICONS.DELETE}
+                        </div>`;
+
+                    playlistItem.querySelector('.play-icon').onclick = (e) => {
+                        e.stopPropagation();
+                        const playlistMedia = appState.allMedia.filter(m => appState.playlists[name].includes(m.id));
+                        renderGallery(playlistMedia, name);
+                        dom.sidebar.classList.remove('open');
+                    };
+                    playlistItem.querySelector('.delete-playlist-btn').onclick = (e) => {
+                        e.stopPropagation();
+                        showResetConfirmation(`Are you sure you want to delete the "${name}" playlist?`, () => deletePlaylist(name));
+                    };
+                    dom.playlistList.appendChild(playlistItem);
+                });
+            }
+
+            function renderRecentFolders() {
+                dom.recentFoldersList.innerHTML = '';
+                if (appState.recentFolders.length > 0) {
+                    dom.recentFoldersSection.classList.remove('hidden');
+                    appState.recentFolders.forEach(folderHandle => {
+                        const folderItem = document.createElement('div');
+                        folderItem.className = 'recent-folder-item';
+                        folderItem.innerHTML = `
+                            ${ICONS.FOLDER}
+                            <span class="flex-grow truncate">${folderHandle.name}</span>
+                        `;
+                        folderItem.onclick = async () => {
+                            try {
+                                await folderHandle.requestPermission();
+                                appState.directoryHandle = folderHandle;
+                                appState.folderFileHandles = [];
+                                appState.folderFileIterator = folderHandle.values();
+                                dom.sidebar.classList.remove('open');
+                                showToast(`Loading videos from "${folderHandle.name}"...`);
+                                await loadMoreFolderFiles();
+                                switchFeed('folder');
+                            } catch (err) {
+                                console.error("Could not re-access folder:", err);
+                                showToast("Could not access the folder. Please select it again.", "error");
+                            }
+                        };
+                        dom.recentFoldersList.appendChild(folderItem);
+                    });
+                } else {
+                    dom.recentFoldersSection.classList.add('hidden');
+                }
+            }
+
+            function showToast(message, type = 'success') {
+                dom.toast.textContent = message;
+                dom.toast.className = `fixed bottom-5 right-5 text-white py-2 px-4 rounded-lg shadow-lg opacity-0 translate-y-3 transition-all duration-300 z-[150] ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+                dom.toast.classList.remove('opacity-0', 'translate-y-3');
+                setTimeout(() => dom.toast.classList.add('opacity-0', 'translate-y-3'), 3000);
+            }
+
+            function showPromptModal(title, callback) {
+                dom.promptModalOverlay.innerHTML = `
+                    <div class="modal-content">
+                        <h3 class="text-lg font-bold mb-4">${title}</h3>
+                        <input id="prompt-input" type="text" class="w-full bg-tertiary border border-border-color rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <div class="flex justify-end gap-4 mt-4">
+                            <button id="prompt-cancel-btn" class="bg-tertiary hover:bg-border-color font-bold py-2 px-4 rounded">Cancel</button>
+                            <button id="prompt-ok-btn" class="bg-blue-500 hover:bg-blue-600 font-bold py-2 px-4 rounded">OK</button>
+                        </div>
+                    </div>`;
+                dom.promptModalOverlay.style.display = 'flex';
+                const input = document.getElementById('prompt-input');
+                document.getElementById('prompt-ok-btn').onclick = () => {
+                    callback(input.value);
+                    dom.promptModalOverlay.style.display = 'none';
+                };
+                document.getElementById('prompt-cancel-btn').onclick = () => dom.promptModalOverlay.style.display = 'none';
+            }
+
+            // --- ANDROID-STYLE SETTINGS MODAL ---
+            function showSettingsModal() {
+                const createToggle = (id, checked) => `
+                    <div class="setting-item-control">
+                        <input type="checkbox" id="${id}" class="toggle-checkbox" ${checked ? 'checked' : ''}>
+                        <label for="${id}" class="toggle-label"></label>
+                    </div>`;
+
+                const createSettingItem = (id, icon, iconColor, title, description, controlHTML) => `
+                    <div class="setting-item" data-setting-id="${id}">
+                        <div class="setting-icon ${iconColor}">${icon}</div>
+                        <div class="setting-item-label">
+                            <strong>${title}</strong>
+                            <span>${description}</span>
+                        </div>
+                        ${controlHTML}
+                    </div>`;
+                
+                 const createShortcutSettingItem = (key, icon, iconColor, description) => `
+                    <div class="setting-item" data-setting-id="${key}" data-shortcut-key="${key}">
+                        <div class="setting-icon ${iconColor}">${icon}</div>
+                        <div class="setting-item-label">
+                            <strong>${description}</strong>
+                        </div>
+                        <div class="setting-item-control">
+                            <span class="shortcut-key">${appState.settings.shortcuts[key] === ' ' ? 'Space' : appState.settings.shortcuts[key]}</span>
+                            <button class="remap-btn">Remap</button>
+                        </div>
+                    </div>`;
+                
+                dom.settingsModalOverlay.innerHTML = `
+                    <div class="modal-content !max-w-xl h-[85vh]">
+                        <div class="settings-header">
+                            <h3>Settings</h3>
+                            <button id="settings-close-btn" class="text-text-secondary hover:text-text-primary text-2xl">&times;</button>
+                        </div>
+                        <div class="settings-search-wrapper">
+                             <input type="text" id="settings-search-input" class="settings-search-bar" placeholder="Search settings...">
+                        </div>
+                        <div class="settings-content">
+                            <div class="settings-section" data-section-title="Appearance">
+                                <h4 class="settings-section-title">Appearance</h4>
+                                ${createSettingItem('theme', ICONS.THEME, 'icon-bg-blue', 'Theme', 'Switch between light and dark mode', createToggle('theme-toggle', appState.settings.theme === 'light'))}
+                                ${createSettingItem('ambient', ICONS.AMBIENT, 'icon-bg-purple', 'Ambient Mode', 'Display a blurred, colorful background', createToggle('ambient-toggle', appState.settings.ambientMode))}
+                                ${createSettingItem('home-view', ICONS.HOME, 'icon-bg-green', 'Default Home View', 'Choose what you see on launch', `
+                                    <div class="setting-item-control">
+                                        <select id="home-view-select" class="bg-tertiary border border-border-color rounded px-2 py-1">
+                                            <option value="gallery" ${appState.settings.defaultView === 'gallery' ? 'selected' : ''}>Gallery</option>
+                                            <option value="feed" ${appState.settings.defaultView === 'feed' ? 'selected' : ''}>Feed</option>
+                                        </select>
+                                    </div>
+                                `)}
+                            </div>
+                            <div class="settings-section" data-section-title="Behavior">
+                                <h4 class="settings-section-title">Behavior</h4>
+                                ${createSettingItem('mute', ICONS.SOUND, 'icon-bg-yellow', 'Mute All Videos', 'Start all videos in a muted state', createToggle('mute-toggle', appState.settings.isGloballyMuted))}
+                                ${createSettingItem('autoscroll', ICONS.SCROLL, 'icon-bg-cyan', 'Enable Auto-Scroll', 'Automatically play the next video', createToggle('scroll-toggle', appState.settings.isAutoScrolling))}
+                                ${createSettingItem('zoom-timeout', ICONS.TIMER, 'icon-bg-orange', 'Zoom Controls Auto-Hide', `Hides after ${appState.settings.zoomControlsTimeout} seconds`, `
+                                    <div class="setting-item-control">
+                                        <input type="range" id="zoom-timeout-slider" min="1" max="10" value="${appState.settings.zoomControlsTimeout}" class="w-24">
+                                    </div>
+                                `)}
+                            </div>
+                            <div class="settings-section" data-section-title="Buttons">
+                                <h4 class="settings-section-title">Visible Player Buttons</h4>
+                                ${createSettingItem('btn-watchLater', ICONS.WATCH_LATER, 'icon-bg-teal', 'Show "Watch Later" Button', 'Toggle the watch later button', createToggle('btn-watchLater-toggle', appState.settings.visibleButtons.watchLater))}
+                                ${createSettingItem('btn-save', ICONS.SAVE, 'icon-bg-blue', 'Show "Save" Button', 'Toggle the save to playlist button', createToggle('btn-save-toggle', appState.settings.visibleButtons.save))}
+                                ${createSettingItem('btn-orientation', ICONS.ORIENTATION, 'icon-bg-purple', 'Show Orientation Button', 'Toggle the rotate button', createToggle('btn-orientation-toggle', appState.settings.visibleButtons.orientation))}
+                                ${createSettingItem('btn-zoom', ICONS.ZOOM, 'icon-bg-green', 'Show Zoom Controls', 'Toggle the zoom controls', createToggle('btn-zoom-toggle', appState.settings.visibleButtons.zoom))}
+                                ${createSettingItem('btn-fullscreen', ICONS.FULLSCREEN, 'icon-bg-yellow', 'Show Fullscreen Button', 'Toggle the fullscreen button', createToggle('btn-fullscreen-toggle', appState.settings.visibleButtons.fullscreen))}
+                            </div>
+                             <div class="settings-section" data-section-title="Keyboard Shortcuts">
+                                <h4 class="settings-section-title">Playback Controls</h4>
+                                ${createShortcutSettingItem('playPause', ICONS.PLAY, 'icon-bg-cyan', 'Play / Pause')}
+                                ${createShortcutSettingItem('nextVideo', ICONS.ARROW_DOWN, 'icon-bg-blue', 'Next Video')}
+                                ${createShortcutSettingItem('prevVideo', ICONS.ARROW_UP, 'icon-bg-blue', 'Previous Video')}
+                                ${createShortcutSettingItem('seekForward', ICONS.ARROW_RIGHT, 'icon-bg-purple', 'Seek Forward')}
+                                ${createShortcutSettingItem('seekBackward', ICONS.ARROW_LEFT, 'icon-bg-purple', 'Seek Backward')}
+                                
+                                <h4 class="settings-section-title">Player Actions</h4>
+                                ${createShortcutSettingItem('lock', ICONS.LOCK, 'icon-bg-orange', 'Toggle Lock Mode')}
+                                ${createShortcutSettingItem('fullscreen', ICONS.FULLSCREEN, 'icon-bg-teal', 'Toggle Fullscreen')}
+                                ${createShortcutSettingItem('rotate', ICONS.ORIENTATION, 'icon-bg-green', 'Rotate Video')}
+                                ${createShortcutSettingItem('save', ICONS.SAVE, 'icon-bg-blue', 'Save to "Saved" Playlist')}
+                                ${createShortcutSettingItem('addPlaylist', ICONS.ADD_TO_PLAYLIST, 'icon-bg-yellow', 'Add to any Playlist')}
+
+                                <h4 class="settings-section-title">Zoom & Pan Controls</h4>
+                                ${createShortcutSettingItem('zoomIn', ICONS.ZOOM, 'icon-bg-green', 'Zoom In')}
+                                ${createShortcutSettingItem('zoomOut', ICONS.ZOOM, 'icon-bg-green', 'Zoom Out')}
+                                ${createShortcutSettingItem('panUp', ICONS.ARROW_UP, 'icon-bg-purple', 'Pan Up')}
+                                ${createShortcutSettingItem('panDown', ICONS.ARROW_DOWN, 'icon-bg-purple', 'Pan Down')}
+                                ${createShortcutSettingItem('panLeft', ICONS.ARROW_LEFT, 'icon-bg-purple', 'Pan Left')}
+                                ${createShortcutSettingItem('panRight', ICONS.ARROW_RIGHT, 'icon-bg-purple', 'Pan Right')}
+                            </div>
+                            <div class="settings-section" data-section-title="Danger Zone">
+                                <h4 class="settings-section-title">Danger Zone</h4>
+                                ${createSettingItem('reset-app', ICONS.WARNING, 'icon-bg-red', 'Reset All App Data', 'This cannot be undone', `
+                                    <div class="setting-item-control">
+                                        <button id="modal-reset-app-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm transition-colors">Reset</button>
+                                    </div>
+                                `)}
+                            </div>
+                        </div>
+                    </div>`;
+
+                dom.settingsModalOverlay.style.display = 'flex';
+
+                // --- Event Listeners for the new settings panel ---
+                document.getElementById('settings-close-btn').onclick = () => dom.settingsModalOverlay.style.display = 'none';
+                
+                // Search Logic
+                const searchInput = document.getElementById('settings-search-input');
+                const settingItems = dom.settingsModalOverlay.querySelectorAll('.setting-item');
+                const settingSections = dom.settingsModalOverlay.querySelectorAll('.settings-section');
+
+                searchInput.addEventListener('input', (e) => {
+                    const query = e.target.value.toLowerCase().trim();
+                    
+                    settingItems.forEach(item => {
+                        const title = item.querySelector('strong').textContent.toLowerCase();
+                        const description = item.querySelector('span')?.textContent.toLowerCase() || '';
+                        const isVisible = title.includes(query) || description.includes(query);
+                        item.style.display = isVisible ? 'flex' : 'none';
+                    });
+
+                    settingSections.forEach(section => {
+                        const visibleItems = section.querySelectorAll('.setting-item[style*="display: flex"]');
+                        section.style.display = visibleItems.length > 0 ? 'block' : 'none';
+                    });
+                });
+
+                // Attach listeners to controls
+                document.getElementById('theme-toggle').onchange = (e) => { appState.settings.theme = e.target.checked ? 'light' : 'dark'; applyTheme(); saveSettings(); };
+                document.getElementById('ambient-toggle').onchange = (e) => { appState.settings.ambientMode = e.target.checked; applyAmbientMode(); saveSettings(); };
+                document.getElementById('home-view-select').onchange = (e) => { appState.settings.defaultView = e.target.value; saveSettings(); };
+                document.getElementById('mute-toggle').onchange = (e) => { appState.settings.isGloballyMuted = e.target.checked; applyMuteState(); saveSettings(); };
+                document.getElementById('scroll-toggle').onchange = (e) => { appState.settings.isAutoScrolling = e.target.checked; applyAutoScrollState(); saveSettings(); };
+                
+                const zoomSlider = document.getElementById('zoom-timeout-slider');
+                const zoomDesc = document.querySelector('[data-setting-id="zoom-timeout"] span');
+                zoomSlider.oninput = () => {
+                    zoomDesc.textContent = `Hides after ${zoomSlider.value} seconds`;
+                };
+                zoomSlider.onchange = () => {
+                     appState.settings.zoomControlsTimeout = parseInt(zoomSlider.value, 10);
+                     saveSettings();
+                };
+                
+                ['watchLater', 'save', 'orientation', 'zoom', 'fullscreen'].forEach(btnKey => {
+                    const toggleElement = document.getElementById(`btn-${btnKey}-toggle`);
+                    if (toggleElement) {
+                        toggleElement.onchange = (e) => {
+                            appState.settings.visibleButtons[btnKey] = e.target.checked;
+                            saveSettings();
+                            if (!dom.videoContainer.classList.contains('hidden') && appState.activeCard) {
+                               const activeIndex = Array.from(dom.videoContainer.children).indexOf(appState.activeCard);
+                               if (activeIndex !== -1) renderVideos(appState.currentlyDisplayedVideos, activeIndex);
+                            }
+                        };
+                    }
+                });
+
+                // Shortcut Remapping Logic
+                dom.settingsModalOverlay.querySelectorAll('.remap-btn').forEach(btn => {
+                    btn.onclick = (e) => {
+                        e.stopPropagation(); // Prevent item hover effect
+                        const allBtns = dom.settingsModalOverlay.querySelectorAll('.remap-btn');
+                        const settingItem = btn.closest('.setting-item');
+                        const shortcutKeyName = settingItem.dataset.shortcutKey;
+                        const keyDisplay = settingItem.querySelector('.shortcut-key');
+
+                        allBtns.forEach(b => {
+                           if (b !== btn) {
+                               b.classList.remove('is-listening');
+                               b.textContent = 'Remap';
+                           }
+                        });
+                        
+                        btn.classList.add('is-listening');
+                        btn.textContent = 'Listening...';
+
+                        const keydownHandler = (e) => {
+                            e.preventDefault();
+                            const newKey = e.key === ' ' ? 'Space' : e.key;
+                            appState.settings.shortcuts[shortcutKeyName] = newKey;
+                            keyDisplay.textContent = newKey;
+                            saveSettings();
+                            
+                            btn.classList.remove('is-listening');
+                            btn.textContent = 'Remap';
+                            window.removeEventListener('keydown', keydownHandler, { capture: true });
+                        };
+                        
+                        window.addEventListener('keydown', keydownHandler, { once: true, capture: true });
+                    };
+                });
+                
+                document.getElementById('modal-reset-app-btn').onclick = (e) => {
+                    e.stopPropagation();
+                    dom.settingsModalOverlay.style.display = 'none';
+                    showResetConfirmation('Are you sure you want to reset all app data?', resetAppData);
+                };
+            }
+
+
+            function showResetConfirmation(message, confirmCallback) {
+                 dom.resetModalOverlay.innerHTML = `
+                    <div class="modal-content text-center">
+                        <h3 class="text-lg font-bold mb-2">Are you sure?</h3>
+                        <p class="text-sm text-secondary mb-4">${message}</p>
+                        <div class="flex justify-center gap-4">
+                            <button id="reset-confirm-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Confirm</button>
+                            <button id="reset-cancel-btn" class="bg-tertiary hover:bg-border-color font-bold py-2 px-4 rounded">Cancel</button>
+                        </div>
+                    </div>`;
+                dom.resetModalOverlay.style.display = 'flex';
+                document.getElementById('reset-confirm-btn').onclick = () => { confirmCallback(); dom.resetModalOverlay.style.display = 'none'; };
+                document.getElementById('reset-cancel-btn').onclick = () => dom.resetModalOverlay.style.display = 'none';
+            }
+
+            // --- Video Card & Controls ---
+            function createVideoCard(videoData) {
+                const isFolderFeed = appState.currentFeed === 'folder';
+                const user = isFolderFeed ? null : appState.allUsers.find(u => u.id === videoData.userId);
+                const username = user ? user.username : (isFolderFeed ? '@folder_player' : '@local_user');
+                const profilePicUrl = user ? user.profilePictureUrl : 'https://placehold.co/40x40/374151/ffffff?text=L';
+                let zoomTimeout;
+
+                const card = document.createElement('div');
+                card.className = 'video-card';
+                card.setAttribute('data-video-id', videoData.id);
+                card.setAttribute('data-video-name', videoData.description);
+
+                const ambientBg = document.createElement('div');
+                ambientBg.className = 'ambient-background';
+                if (videoData.thumbnailUrl) ambientBg.style.backgroundImage = `url(${videoData.thumbnailUrl})`;
+
+                const videoElement = document.createElement('video');
+                videoElement.loop = !appState.settings.isAutoScrolling;
+                videoElement.muted = appState.settings.isGloballyMuted;
+                videoElement.playsInline = true;
+                videoElement.preload = "metadata";
+
+                let tapTimeout = null;
+                let lastTapTime = 0;
+                videoElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTapTime;
+                    clearTimeout(tapTimeout);
+
+                    if (tapLength < 300 && tapLength > 0) {
+                        e.preventDefault();
+                        const rect = videoElement.getBoundingClientRect();
+                        const tapX = e.clientX - rect.left;
+                        const seekAmount = 10;
+                        if (tapX > rect.width / 2) {
+                            videoElement.currentTime = Math.min(videoElement.duration, videoElement.currentTime + seekAmount);
+                            showSeekIndicator(card, `+${seekAmount}s`);
+                        } else {
+                            videoElement.currentTime = Math.max(0, videoElement.currentTime - seekAmount);
+                            showSeekIndicator(card, `-${seekAmount}s`);
+                        }
+                        lastTapTime = 0;
+                    } else {
+                        tapTimeout = setTimeout(() => {
+                            togglePlayPause(videoElement, card.querySelector('.play-pause-btn'));
+                        }, 300);
+                    }
+                    lastTapTime = currentTime;
+                });
+
+                videoElement.addEventListener('ended', () => {
+                    if (appState.settings.isAutoScrolling) {
+                        const nextCard = card.nextElementSibling;
+                        if (nextCard) nextCard.scrollIntoView({ behavior: 'smooth' });
+                        else dom.videoContainer.children[0]?.scrollIntoView({ behavior: 'smooth' });
+                    }
+                });
+
+                const overlay = document.createElement('div');
+                overlay.className = 'video-overlay';
+                overlay.innerHTML = `
+                    <div class="video-info">
+                        <div class="user-details">
+                            ${!isFolderFeed ? `<img src="${profilePicUrl}" class="profile-pic" alt="Profile Picture">` : ''}
+                            <div>
+                                <h3 class="font-bold user-link" data-user-id="${user ? user.id : ''}">${username}</h3>
+                                <p>${videoData.description}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="video-controls">
+                        ${createControlButtonHTML('lock-btn', ICONS.LOCK)}
+                        ${createControlButtonHTML('back-btn', ICONS.BACK)}
+                        ${!isFolderFeed ? createControlButtonHTML('add-playlist-btn', ICONS.ADD_TO_PLAYLIST) : ''}
+                        ${!isFolderFeed && appState.settings.visibleButtons.watchLater ? createControlButtonHTML('watch-later-btn', ICONS.WATCH_LATER) : ''}
+                        ${!isFolderFeed && appState.settings.visibleButtons.save ? createControlButtonHTML('save-btn', ICONS.SAVE) : ''}
+                        ${appState.settings.visibleButtons.orientation ? createControlButtonHTML('orientation-btn', ICONS.ORIENTATION) : ''}
+                        ${appState.settings.visibleButtons.zoom ? `
+                            <div class="zoom-wrapper">
+                                <button class="control-button zoom-activate-btn">${ICONS.ZOOM}</button>
+                                <div class="zoom-control-container hidden">
+                                    <div class="pan-btn pan-up-btn">${ICONS.ARROW_UP}</div>
+                                    <div class="pan-btn pan-left-btn">${ICONS.ARROW_LEFT}</div>
+                                    <div class="zoom-display">${appState.settings.currentZoom.toFixed(1)}x</div>
+                                    <div class="pan-btn pan-right-btn">${ICONS.ARROW_RIGHT}</div>
+                                    <div class="pan-btn pan-down-btn">${ICONS.ARROW_DOWN}</div>
+                                    <div class="zoom-btn zoom-in-btn">+</div>
+                                    <div class="zoom-btn zoom-out-btn">-</div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${appState.settings.visibleButtons.fullscreen ? createControlButtonHTML('fullscreen-btn', ICONS.FULLSCREEN) : ''}
+                        ${createControlButtonHTML('play-pause-btn', ICONS.PLAY)}
+                    </div>`;
+                card.append(ambientBg, videoElement, overlay);
+                applyTransforms(videoElement);
+
+                card.querySelector('.back-btn').onclick = (e) => { e.stopPropagation(); goToHomeScreen(); };
+                card.querySelector('.lock-btn').onclick = (e) => {
+                    e.stopPropagation();
+                    appState.settings.isLockModeActive = !appState.settings.isLockModeActive;
+                    saveSettings();
+                    applyGlobalLockMode();
+                };
+
+                if (!isFolderFeed) {
+                    card.querySelector('.add-playlist-btn').onclick = (e) => { e.stopPropagation(); showPlaylistModal(videoData.id); };
+                    const userLink = card.querySelector('.user-link');
+                    if (userLink && user) userLink.onclick = (e) => { e.stopPropagation(); renderProfilePage(user.id); };
+                    if(appState.settings.visibleButtons.watchLater) card.querySelector('.watch-later-btn').onclick = (e) => { e.stopPropagation(); addToSpecificPlaylist('Watch Later', videoData.id); };
+                    if(appState.settings.visibleButtons.save) card.querySelector('.save-btn').onclick = (e) => { e.stopPropagation(); addToSpecificPlaylist('Saved', videoData.id); };
+                }
+
+                if(appState.settings.visibleButtons.orientation) card.querySelector('.orientation-btn').onclick = (e) => { e.stopPropagation(); cycleOrientation(); };
+                if(appState.settings.visibleButtons.zoom) {
+                    const zoomWrapper = card.querySelector('.zoom-wrapper');
+                    const activateBtn = zoomWrapper.querySelector('.zoom-activate-btn');
+                    const controls = zoomWrapper.querySelector('.zoom-control-container');
+
+                    const showDetailedControls = () => {
+                        activateBtn.classList.add('hidden');
+                        controls.classList.remove('hidden');
+                        clearTimeout(zoomTimeout);
+                        zoomTimeout = setTimeout(() => {
+                            controls.classList.add('hidden');
+                            activateBtn.classList.remove('hidden');
+                        }, appState.settings.zoomControlsTimeout * 1000);
+                    };
+
+                    activateBtn.onclick = (e) => { e.stopPropagation(); showDetailedControls(); };
+                    controls.querySelector('.zoom-in-btn').onclick = (e) => { e.stopPropagation(); changeZoom(0.2); showDetailedControls(); };
+                    controls.querySelector('.zoom-out-btn').onclick = (e) => { e.stopPropagation(); changeZoom(-0.2); showDetailedControls(); };
+                    controls.querySelector('.pan-up-btn').onclick = (e) => { e.stopPropagation(); panVideo(0, 10); showDetailedControls(); };
+                    controls.querySelector('.pan-down-btn').onclick = (e) => { e.stopPropagation(); panVideo(0, -10); showDetailedControls(); };
+                    controls.querySelector('.pan-left-btn').onclick = (e) => { e.stopPropagation(); panVideo(10, 0); showDetailedControls(); };
+                    controls.querySelector('.pan-right-btn').onclick = (e) => { e.stopPropagation(); panVideo(-10, 0); showDetailedControls(); };
+                }
+                if(appState.settings.visibleButtons.fullscreen) card.querySelector('.fullscreen-btn').onclick = (e) => { e.stopPropagation(); toggleFullScreen(); };
+                return card;
+            }
+
+            function createControlButtonHTML(className, icon) { return `<button class="control-button ${className}">${icon}</button>`; }
+            function cleanupVideoObjectURLs() {
+                appState.activeVideoObjectURLs.forEach(url => URL.revokeObjectURL(url));
+                appState.activeVideoObjectURLs.clear();
+            }
+            function togglePlayPause(video, button) {
+                if (video.paused) { video.play().catch(()=>{}); if(button) button.innerHTML = ICONS.PAUSE; }
+                else { video.pause(); if(button) button.innerHTML = ICONS.PLAY; }
+            }
+            function applyMuteState() { document.querySelectorAll('video').forEach(video => video.muted = appState.settings.isGloballyMuted); }
+            function applyAutoScrollState() { document.querySelectorAll('video').forEach(v => v.loop = !appState.settings.isAutoScrolling); }
+            function applyTheme() { dom.html.classList.toggle('light', appState.settings.theme === 'light'); }
+            function applyAmbientMode() { dom.html.classList.toggle('ambient-on', appState.settings.ambientMode); }
+
+            function applyGlobalLockMode() {
+                const isLocked = appState.settings.isLockModeActive;
+                document.querySelectorAll('.video-card').forEach(card => {
+                    card.classList.toggle('lock-mode', isLocked);
+                    const lockButton = card.querySelector('.lock-btn');
+                    if (lockButton) lockButton.innerHTML = isLocked ? ICONS.UNLOCK : ICONS.LOCK;
+                });
+            }
+
+            function showSeekIndicator(card, text) {
+                if (!card) return;
+                let indicator = card.querySelector('.seek-indicator');
+                if (!indicator) {
+                    indicator = document.createElement('div');
+                    indicator.className = 'seek-indicator';
+                    card.appendChild(indicator);
+                }
+                indicator.textContent = text;
+                indicator.classList.add('show');
+                setTimeout(() => { indicator.classList.remove('show'); }, 600);
+            }
+
+            async function updateAmbientBackground(videoData) {
+                if (!videoData) return;
+                const activeCard = document.querySelector(`[data-video-id="${videoData.id}"]`);
+                if (activeCard) {
+                    const currentBg = activeCard.querySelector('.ambient-background');
+                    if (currentBg && !currentBg.style.backgroundImage) {
+                        if (videoData.fileHandle && !videoData.thumbnailUrl) {
+                            videoData.thumbnailUrl = await generateThumbnail(videoData);
+                        }
+                        if (videoData.thumbnailUrl) currentBg.style.backgroundImage = `url(${videoData.thumbnailUrl})`;
+                    }
+                    document.querySelectorAll('.ambient-background').forEach(bg => bg.style.opacity = 0);
+                    if (currentBg) currentBg.style.opacity = 1;
+                }
+            }
+
+            function toggleFullScreen() {
+                if (!document.fullscreenElement) dom.videoContainer.requestFullscreen().catch(err => showToast(`Fullscreen error: ${err.message}`, 'error'));
+                else document.exitFullscreen();
+            }
+
+            function applyTransforms(videoElement) {
+                if (!videoElement || !videoElement.parentElement) return;
+                const { currentRotation: rotation, currentZoom: zoomLevel, currentPanX: panX, currentPanY: panY } = appState.settings;
+                const isSideways = rotation === 90 || rotation === 270;
+                const ambientBg = videoElement.parentElement.querySelector('.ambient-background');
+                videoElement.style.width = ''; videoElement.style.height = '';
+                videoElement.style.maxWidth = ''; videoElement.style.maxHeight = '';
+                if (ambientBg) ambientBg.style.display = 'block';
+                if (isSideways) {
+                    videoElement.style.width = '100vh'; videoElement.style.height = '100vw';
+                    videoElement.style.maxWidth = '100vh'; videoElement.style.maxHeight = '100vw';
+                    videoElement.style.objectFit = 'cover';
+                    if (ambientBg) ambientBg.style.display = 'none';
+                } else {
+                    videoElement.style.objectFit = zoomLevel > 1 ? 'cover' : 'contain';
+                }
+                videoElement.style.transform = `translate(${panX}%, ${panY}%) rotate(${rotation}deg) scale(${zoomLevel})`;
+            }
+
+            function cycleOrientation() {
+                appState.settings.currentRotation = (appState.settings.currentRotation + 90) % 360;
+                appState.settings.currentPanX = 0; appState.settings.currentPanY = 0;
+                saveSettings();
+                document.querySelectorAll('.video-card video').forEach(applyTransforms);
+            }
+
+            function changeZoom(amount) {
+                let currentZoom = appState.settings.currentZoom + amount;
+                currentZoom = Math.max(1, Math.min(3, currentZoom));
+                appState.settings.currentZoom = parseFloat(currentZoom.toFixed(2));
+                if(appState.settings.currentZoom === 1) { appState.settings.currentPanX = 0; appState.settings.currentPanY = 0; }
+                saveSettings();
+                document.querySelectorAll('.video-card video').forEach(applyTransforms);
+                document.querySelectorAll('.zoom-display').forEach(el => el.textContent = `${appState.settings.currentZoom.toFixed(1)}x`);
+            }
+
+            function panVideo(x, y) {
+                if (appState.settings.currentZoom <= 1) return;
+                appState.settings.currentPanX += x; appState.settings.currentPanY += y;
+                const maxPan = (appState.settings.currentZoom - 1) * 50;
+                appState.settings.currentPanX = Math.max(-maxPan, Math.min(maxPan, appState.settings.currentPanX));
+                appState.settings.currentPanY = Math.max(-maxPan, Math.min(maxPan, appState.settings.currentPanY));
+                saveSettings();
+                document.querySelectorAll('.video-card video').forEach(applyTransforms);
+            }
+
+            // --- Playlist Management ---
+            async function createPlaylist(name) {
+                if (name && !appState.playlists[name]) {
+                    appState.playlists[name] = [];
+                    await savePlaylists();
+                    renderPlaylists();
+                    showToast(`Playlist "${name}" created.`);
+                } else if (name) {
+                    showToast(`Playlist "${name}" already exists.`, 'error');
+                }
+            }
+            async function deletePlaylist(name) {
+                if (name && appState.playlists[name] && name !== 'Watch Later' && name !== 'Saved') {
+                    delete appState.playlists[name];
+                    await savePlaylists();
+                    renderPlaylists();
+                    showToast(`Playlist "${name}" deleted.`);
+                    if(appState.currentPlaylist === name) renderGallery(appState.allMedia, 'All Media');
+                }
+            }
+            async function addToSpecificPlaylist(playlistName, mediaId) {
+                if (appState.playlists[playlistName] && !appState.playlists[playlistName].includes(mediaId)) {
+                    appState.playlists[playlistName].push(mediaId);
+                    await savePlaylists();
+                    renderPlaylists();
+                    showToast(`Media added to "${playlistName}"`);
+                } else if (appState.playlists[playlistName]) {
+                    showToast(`Media is already in "${playlistName}"`);
+                }
+            }
+            async function removeSelectedMediaFromPlaylist() {
+                const selectedMediaIds = Array.from(dom.galleryGrid.querySelectorAll('.gallery-thumb-container.selected')).map(thumb => thumb.dataset.mediaId);
+                if (selectedMediaIds.length === 0) { showToast("No media selected.", "error"); return; }
+                const playlistName = appState.currentPlaylist;
+                if (playlistName && appState.playlists[playlistName]) {
+                    appState.playlists[playlistName] = appState.playlists[playlistName].filter(id => !selectedMediaIds.includes(id));
+                    await savePlaylists();
+                    showToast(`Removed ${selectedMediaIds.length} item(s) from "${playlistName}".`);
+                    const updatedPlaylistMedia = appState.allMedia.filter(m => appState.playlists[playlistName].includes(m.id));
+                    renderGallery(updatedPlaylistMedia, playlistName);
+                    renderPlaylists();
+                }
+                toggleGalleryEditMode(false);
+            }
+
+            function showPlaylistModal(mediaId) {
+                const modalContent = document.createElement('div');
+                modalContent.className = 'modal-content';
+                modalContent.innerHTML = `<h3 class="text-lg font-bold mb-4">Add to Playlist</h3>`;
+                const listContainer = document.createElement('div');
+                listContainer.className = 'space-y-2 max-h-60 overflow-y-auto';
+                Object.keys(appState.playlists).forEach(name => {
+                    const item = document.createElement('button');
+                    item.className = 'w-full text-left p-2 bg-tertiary rounded hover:bg-border-color transition-colors';
+                    item.textContent = name;
+                    item.onclick = () => { addToSpecificPlaylist(name, mediaId); dom.playlistModalOverlay.style.display = 'none'; };
+                    listContainer.appendChild(item);
+                });
+                const closeBtn = document.createElement('button');
+                closeBtn.className = 'mt-4 w-full bg-tertiary hover:bg-border-color text-sm py-2 px-4 rounded';
+                closeBtn.textContent = 'Cancel';
+                closeBtn.onclick = () => dom.playlistModalOverlay.style.display = 'none';
+                modalContent.append(listContainer, closeBtn);
+                dom.playlistModalOverlay.innerHTML = '';
+                dom.playlistModalOverlay.appendChild(modalContent);
+                dom.playlistModalOverlay.style.display = 'flex';
+            }
+
+            function toggleGalleryEditMode(forceState) {
+                appState.isGalleryEditMode = typeof forceState === 'boolean' ? forceState : !appState.isGalleryEditMode;
+                dom.galleryEditControls.innerHTML = '';
+                dom.galleryGrid.querySelectorAll('.gallery-thumb-container').forEach(thumb => {
+                    thumb.classList.toggle('in-edit-mode', appState.isGalleryEditMode);
+                    thumb.classList.remove('selected');
+                    thumb.querySelector('.selection-checkbox').checked = false;
+                });
+
+                if (appState.isGalleryEditMode) {
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'bg-red-600 hover:bg-red-700 text-white text-sm py-1 px-3 rounded';
+                    removeBtn.textContent = 'Remove Selected';
+                    removeBtn.onclick = removeSelectedMediaFromPlaylist;
+                    const doneBtn = document.createElement('button');
+                    doneBtn.className = 'bg-gray-600 hover:bg-gray-700 text-white text-sm py-1 px-3 rounded';
+                    doneBtn.textContent = 'Done';
+                    doneBtn.onclick = () => toggleGalleryEditMode(false);
+                    dom.galleryEditControls.append(removeBtn, doneBtn);
+                } else {
+                    const isCustomPlaylist = appState.currentPlaylist && appState.currentPlaylist !== 'All Media';
+                    if (isCustomPlaylist) {
+                        const editBtn = document.createElement('button');
+                        editBtn.className = 'bg-blue-600 hover:bg-blue-700 text-white text-sm py-1 px-3 rounded';
+                        editBtn.textContent = 'Edit Media';
+                        editBtn.onclick = () => toggleGalleryEditMode(true);
+                        dom.galleryEditControls.appendChild(editBtn);
+                    }
+                }
+            }
+
+            // --- Admin Panel & Profile Page ---
+            function showAdminPanel() {
+                appState.previousView = 'admin';
+                dom.adminPanelOverlay.innerHTML = `
+                    <div class="modal-content max-h-[90vh] overflow-y-auto w-full max-w-5xl">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold">Admin Dashboard</h3>
+                            <button id="admin-close-btn" class="text-text-secondary hover:text-text-primary text-2xl">&times;</button>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            ${createStatCardHTML('total-users', ICONS.USERS, 'Total Users', 'bg-blue-500')}
+                            ${createStatCardHTML('total-media', ICONS.MEDIA_FILES, 'Total Media', 'bg-green-500')}
+                            ${createStatCardHTML('total-playlists', ICONS.PLAYLISTS_ICON, 'Playlists', 'bg-purple-500')}
+                            ${createStatCardHTML('local-media', ICONS.LOCAL_STORAGE, 'Local Files', 'bg-yellow-500')}
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="lg:col-span-2 space-y-6">
+                                <div class="bg-tertiary p-4 rounded-lg border border-border-color">
+                                    <h4 class="text-lg font-semibold mb-2">Media per User</h4>
+                                    <canvas id="admin-chart"></canvas>
+                                </div>
+                                <div class="bg-tertiary p-4 rounded-lg border border-border-color">
+                                    <h4 class="text-lg font-semibold mb-2">All Users</h4>
+                                    <div id="admin-user-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+                                </div>
+                            </div>
+
+                            <div class="lg:col-span-1 space-y-6">
+                                <div class="bg-tertiary p-4 rounded-lg border border-border-color">
+                                    <h4 class="text-lg font-semibold mb-2">User Management</h4>
+                                    <div class="space-y-3">
+                                        <input id="admin-username" type="text" placeholder="Username (e.g., @cooluser)" class="w-full bg-secondary border border-border-color rounded px-3 py-2">
+                                        <button id="admin-create-user-btn" class="sidebar-btn bg-blue-600 hover:bg-blue-700">${ICONS.PLUS_CIRCLE} <span>Create User</span></button>
+                                        <div class="flex gap-2">
+                                            <button id="admin-import-users-btn" class="sidebar-btn flex-1">${ICONS.IMPORT} <span>Import</span></button>
+                                            <button id="admin-export-users-btn" class="sidebar-btn flex-1">${ICONS.EXPORT} <span>Export</span></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-tertiary p-4 rounded-lg border border-border-color">
+                                    <h4 class="text-lg font-semibold mb-2">Content Upload</h4>
+                                    <div class="space-y-3">
+                                        <select id="admin-user-select" class="w-full bg-secondary border border-border-color rounded px-3 py-2">
+                                            <option value="">-- Select a User to Upload For --</option>
+                                        </select>
+                                        <button id="admin-dp-upload-btn" class="sidebar-btn">${ICONS.UPLOAD}<span>Upload Profile Picture</span></button>
+                                        <input id="admin-dp-upload" type="file" accept="image/*"/>
+                                        <button id="admin-reels-upload-btn" class="sidebar-btn">${ICONS.UPLOAD}<span>Upload Reels & Photos</span></button>
+                                        <input id="admin-reels-upload" type="file" accept="video/*,image/*" multiple/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                renderAdminDashboardData();
+
+                document.getElementById('admin-close-btn').onclick = () => dom.adminPanelOverlay.style.display = 'none';
+                document.getElementById('admin-create-user-btn').onclick = createNewUser;
+                document.getElementById('admin-dp-upload-btn').onclick = () => document.getElementById('admin-dp-upload').click();
+                document.getElementById('admin-dp-upload').onchange = handleDpUpload;
+                document.getElementById('admin-reels-upload-btn').onclick = () => document.getElementById('admin-reels-upload').click();
+                document.getElementById('admin-reels-upload').onchange = handleMediaUpload;
+                document.getElementById('admin-import-users-btn').onclick = importUserData;
+                document.getElementById('admin-export-users-btn').onclick = exportUserData;
+
+                dom.adminPanelOverlay.style.display = 'flex';
+            }
+
+            function createStatCardHTML(id, icon, label, colorClass) {
+                return `
+                    <div class="stat-card">
+                        <div class="stat-card-icon ${colorClass}">${icon}</div>
+                        <div>
+                            <div id="${id}" class="stat-card-value">0</div>
+                            <div class="stat-card-label">${label}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function renderAdminDashboardData() {
+                document.getElementById('total-users').textContent = appState.allUsers.length;
+                document.getElementById('total-media').textContent = appState.allMedia.length;
+                document.getElementById('total-playlists').textContent = Object.keys(appState.playlists).length;
+                document.getElementById('local-media').textContent = appState.allMedia.filter(m => m.id.startsWith('local-')).length;
+
+                renderAdminUserList();
+
+                const userMediaCounts = appState.allUsers.map(user => ({
+                    username: user.username,
+                    count: appState.allMedia.filter(media => media.userId === user.id).length
+                }));
+
+                const chartLabels = userMediaCounts.map(u => u.username);
+                const chartData = userMediaCounts.map(u => u.count);
+
+                const ctx = document.getElementById('admin-chart').getContext('2d');
+                if (appState.adminChart) {
+                    appState.adminChart.destroy();
+                }
+                appState.adminChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [{
+                            label: '# of Media Files',
+                            data: chartData,
+                            backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: { y: { beginAtZero: true, ticks: { color: 'rgba(255,255,255,0.7)' } }, x: { ticks: { color: 'rgba(255,255,255,0.7)' } } },
+                        plugins: { legend: { labels: { color: 'rgba(255,255,255,0.7)' } } }
+                    }
+                });
+            }
+
+            function renderAdminUserList() {
+                const userList = document.getElementById('admin-user-list');
+                const userSelect = document.getElementById('admin-user-select');
+                if (!userList || !userSelect) return;
+                userList.innerHTML = '';
+                userSelect.innerHTML = '<option value="">-- Select a User to Upload For --</option>';
+                appState.allUsers.forEach(user => {
+                    const userItem = document.createElement('div');
+                    userItem.className = 'p-2 bg-secondary rounded cursor-pointer hover:bg-border-color flex justify-between items-center';
+                    userItem.innerHTML = `<span>${user.username}</span> <span class="text-xs text-text-secondary">${user.id.includes('local') ? 'Local' : 'Social'}</span>`;
+                    userItem.onclick = () => renderProfilePage(user.id);
+                    userList.appendChild(userItem);
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = user.username;
+                    userSelect.appendChild(option);
+                });
+            }
+
+            async function createNewUser() {
+                const usernameInput = document.getElementById('admin-username');
+                const username = usernameInput.value.trim();
+                if (!username.startsWith('@')) { showToast("Username must start with @", "error"); return; }
+                if (appState.allUsers.some(u => u.username === username)) { showToast("Username already exists.", "error"); return; }
+                const newUser = { id: `user-${Date.now()}`, username, bio: 'Newly created user.', profilePictureUrl: null };
+                appState.allUsers.push(newUser);
+                await dbManager.put(dbManager.USER_STORE, newUser);
+                showToast(`User ${username} created successfully.`);
+                usernameInput.value = '';
+                renderAdminDashboardData();
+            }
+
+            function handleDpUpload(event) {
+                const userId = document.getElementById('admin-user-select').value;
+                const file = event.target.files[0];
+                if (!userId || !file) { showToast("Please select a user and a file.", "error"); return; }
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const user = appState.allUsers.find(u => u.id === userId);
+                    if (user) {
+                        user.profilePictureUrl = e.target.result;
+                        await dbManager.put(dbManager.USER_STORE, user);
+                        showToast(`Profile picture updated for ${user.username}.`);
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+
+            async function handleMediaUpload(event) {
+                const userId = document.getElementById('admin-user-select').value;
+                const files = event.target.files;
+                if (!userId || files.length === 0) { showToast("Please select a user and at least one file.", "error"); return; }
+                showToast(`Uploading ${files.length} file(s)...`);
+                for (const file of files) await addMedia(file, userId);
+                showToast(`Finished uploading.`, 'success');
+                renderAdminDashboardData();
+            }
+
+            function exportUserData() {
+                try {
+                    const dataStr = JSON.stringify(appState.allUsers, null, 2);
+                    const blob = new Blob([dataStr], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'reels_player_users.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showToast("User data exported successfully.");
+                } catch (error) {
+                    showToast("Failed to export user data.", "error");
+                    console.error("Export error:", error);
+                }
+            }
+
+            function importUserData() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json,application/json';
+                input.onchange = e => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                        try {
+                            const importedUsers = JSON.parse(event.target.result);
+                            if (!Array.isArray(importedUsers)) throw new Error("Invalid JSON format. Expected an array of users.");
+                            
+                            let newUsersCount = 0;
+                            for (const user of importedUsers) {
+                                if (user.id && user.username && !appState.allUsers.some(u => u.id === user.id)) {
+                                    appState.allUsers.push(user);
+                                    await dbManager.put(dbManager.USER_STORE, user);
+                                    newUsersCount++;
+                                }
+                            }
+                            showToast(`${newUsersCount} new users imported successfully.`);
+                            renderAdminDashboardData();
+                        } catch (error) {
+                            showToast("Failed to import users. Check file format.", "error");
+                            console.error("Import error:", error);
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
+            }
+
+            function renderProfilePage(userId) {
+                const user = appState.allUsers.find(u => u.id === userId);
+                if (!user) { showToast("User not found.", "error"); return; }
+                dom.videoContainer.classList.add('hidden');
+                dom.galleryContainer.classList.add('hidden');
+                dom.adminPanelOverlay.style.display = 'none';
+                dom.profilePageContainer.classList.remove('hidden');
+                const userMedia = appState.allMedia.filter(m => m.userId === userId);
+
+                dom.profilePageContainer.innerHTML = `
+                    <div class="max-w-4xl mx-auto">
+                        <button id="profile-back-btn" class="absolute top-5 left-5 text-text-primary bg-black/30 p-2 rounded-full">${ICONS.BACK}</button>
+                        <div class="flex flex-col items-center pt-8 pb-6">
+                            <img src="${user.profilePictureUrl || 'https://placehold.co/128x128/1f2937/ffffff?text=DP'}" class="w-32 h-32 rounded-full object-cover border-4 border-border-color">
+                            <h2 class="text-3xl font-bold mt-4">${user.username}</h2>
+                            <p class="text-text-secondary mt-2 text-center">${user.bio}</p>
+                            <div class="flex gap-2 mt-4">
+                                <button id="profile-edit-btn" class="sidebar-btn !w-auto"> ${ICONS.EDIT} <span>Edit Profile</span> </button>
+                                <button id="profile-add-reels-btn" class="sidebar-btn !w-auto"> ${ICONS.UPLOAD} <span>Add Reels</span> </button>
+                                <input id="profile-add-reels" type="file" accept="video/*" multiple/>
+                                <button id="profile-add-photos-btn" class="sidebar-btn !w-auto"> ${ICONS.UPLOAD} <span>Add Photos</span> </button>
+                                <input id="profile-add-photos" type="file" accept="image/*" multiple/>
+                            </div>
+                        </div>
+                        <div class="border-t border-border-color mt-4 pt-4">
+                            <div id="profile-tabs" class="flex justify-center gap-8 mb-4">
+                                <button class="profile-tab active" data-tab="reels">Reels</button>
+                                <button class="profile-tab" data-tab="photos">Photos</button>
+                            </div>
+                            <div id="profile-gallery-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2"></div>
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('profile-back-btn').onclick = goToHomeScreen;
+                document.getElementById('profile-edit-btn').onclick = () => showEditProfileModal(user);
+                document.getElementById('profile-add-reels-btn').onclick = () => document.getElementById('profile-add-reels').click();
+                document.getElementById('profile-add-reels').onchange = (e) => handleProfileMediaUpload(e, user.id);
+                document.getElementById('profile-add-photos-btn').onclick = () => document.getElementById('profile-add-photos').click();
+                document.getElementById('profile-add-photos').onchange = (e) => handleProfileMediaUpload(e, user.id);
+
+                const tabs = document.querySelectorAll('.profile-tab');
+                tabs.forEach(tab => {
+                    tab.onclick = (e) => {
+                        tabs.forEach(t => t.classList.remove('active'));
+                        e.target.classList.add('active');
+                        renderProfileGallery(userMedia, e.target.dataset.tab);
+                    };
+                });
+                renderProfileGallery(userMedia, 'reels');
+            }
+
+            function renderProfileGallery(userMedia, activeTab) {
+                const galleryGrid = document.getElementById('profile-gallery-grid');
+                if (!galleryGrid) return;
+                galleryGrid.innerHTML = '';
+                const filteredMedia = userMedia.filter(m => m.type === (activeTab === 'reels' ? 'video' : 'image'));
+                if (filteredMedia.length === 0) { galleryGrid.innerHTML = `<p class="col-span-full text-center text-secondary">No ${activeTab} yet.</p>`; return; }
+                filteredMedia.forEach((media) => {
+                    const mediaIcon = media.type === 'video' ? ICONS.VIDEO_ICON : ICONS.PHOTO_ICON;
+                    const thumbContainer = document.createElement('div');
+                    thumbContainer.className = 'gallery-thumb-container relative aspect-[9/16] bg-tertiary rounded-lg overflow-hidden cursor-pointer group';
+                    thumbContainer.dataset.mediaId = media.id;
+                    thumbContainer.innerHTML = `<div class="media-type-icon">${mediaIcon}</div><img src="${media.thumbnailUrl}" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" alt="Thumbnail">`;
+                    thumbContainer.onclick = () => {
+                        if (media.type === 'video') {
+                            const videosOnly = userMedia.filter(m => m.type === 'video');
+                            const videoIndex = videosOnly.findIndex(v => v.id === media.id);
+                            renderVideos(videosOnly, videoIndex);
+                        } else {
+                            showImageModal(media.url || media.thumbnailUrl);
+                        }
+                    };
+                    galleryGrid.appendChild(thumbContainer);
+                });
+            }
+
+            function goToHomeScreen() {
+                dom.videoContainer.querySelectorAll('video').forEach(video => { video.pause(); video.src = ''; video.removeAttribute('src'); });
+                dom.videoContainer.classList.add('hidden');
+                dom.profilePageContainer.classList.add('hidden');
+                dom.galleryContainer.classList.add('hidden');
+                dom.adminPanelOverlay.style.display = 'none';
+                if (appState.intersectionObserver) appState.intersectionObserver.disconnect();
+                cleanupVideoObjectURLs();
+                appState.activeCard = null;
+                appState.currentlyDisplayedVideos = [];
+                appState.currentFeed = appState.settings.defaultView === 'feed' ? 'social' : null;
+                if (appState.settings.defaultView === 'feed') switchFeed('social');
+                else renderGallery(appState.allMedia, 'All Media');
+            }
+
+            function showImageModal(imageUrl) {
+                dom.imageViewerOverlay.innerHTML = `<div class="modal-content p-0 bg-transparent border-0 w-full h-full flex items-center justify-center"><img src="${imageUrl}" class="max-w-full max-h-full object-contain"></div>`;
+                dom.imageViewerOverlay.style.display = 'flex';
+                dom.imageViewerOverlay.onclick = () => dom.imageViewerOverlay.style.display = 'none';
+            }
+
+            async function handleProfileMediaUpload(event, userId) {
+                const files = event.target.files;
+                if (!userId || files.length === 0) return;
+                showToast(`Uploading ${files.length} file(s)...`);
+                for (const file of files) await addMedia(file, userId);
+                showToast(`Finished uploading.`, 'success');
+                renderProfilePage(userId);
+            }
+
+            function showEditProfileModal(user) {
+                const modalContent = `
+                    <div class="modal-content">
+                        <h3 class="text-lg font-bold mb-4">Edit Profile</h3>
+                        <div class="space-y-3">
+                            <input id="edit-username" type="text" value="${user.username}" class="w-full bg-tertiary border border-border-color rounded px-3 py-2">
+                            <textarea id="edit-bio" rows="3" class="w-full bg-tertiary border border-border-color rounded px-3 py-2">${user.bio}</textarea>
+                        </div>
+                        <div class="flex justify-end gap-4 mt-4">
+                            <button id="edit-profile-cancel-btn" class="bg-tertiary hover:bg-border-color font-bold py-2 px-4 rounded">Cancel</button>
+                            <button id="edit-profile-save-btn" class="bg-blue-500 hover:bg-blue-600 font-bold py-2 px-4 rounded">Save</button>
+                        </div>
+                    </div>`;
+                dom.promptModalOverlay.innerHTML = modalContent;
+                dom.promptModalOverlay.style.display = 'flex';
+                document.getElementById('edit-profile-save-btn').onclick = async () => {
+                    const newUsername = document.getElementById('edit-username').value.trim();
+                    const newBio = document.getElementById('edit-bio').value.trim();
+                    if (!newUsername.startsWith('@')) { showToast("Username must start with @", "error"); return; }
+                    if (appState.allUsers.some(u => u.username === newUsername && u.id !== user.id)) { showToast("Username already exists.", "error"); return; }
+                    user.username = newUsername; user.bio = newBio;
+                    await dbManager.put(dbManager.USER_STORE, user);
+                    showToast("Profile updated successfully.");
+                    dom.promptModalOverlay.style.display = 'none';
+                    renderProfilePage(user.id);
+                };
+                document.getElementById('edit-profile-cancel-btn').onclick = () => dom.promptModalOverlay.style.display = 'none';
+            }
+
+            // --- Event Listeners ---
+            function setupEventListeners() {
+                dom.sidebarToggle.addEventListener('click', (e) => { e.stopPropagation(); dom.sidebar.classList.toggle('open'); });
+                document.body.addEventListener('click', (e) => {
+                    if (!dom.sidebar.contains(e.target) && !e.target.closest('.modal-overlay') && dom.sidebar.classList.contains('open')) {
+                        dom.sidebar.classList.remove('open');
+                    }
+                });
+                dom.addToLocalFeedBtn.addEventListener('click', () => dom.fileUpload.click());
+                dom.fileUpload.addEventListener('change', async (event) => {
+                    dom.sidebar.classList.remove('open');
+                    showToast(`Adding ${event.target.files.length} file(s) to Local feed...`);
+                    for (const file of event.target.files) await addMedia(file, 'local-user');
+                    showToast(`Finished adding files.`, 'success');
+                    switchFeed('local');
+                });
+                dom.playFromFolderBtn.addEventListener('click', selectAndPlayFromFolder);
+                dom.createPlaylistBtn.addEventListener('click', () => showPromptModal("Enter new playlist name:", (name) => { if (name) createPlaylist(name); }));
+                dom.editPlaylistsBtn.addEventListener('click', () => { appState.isPlaylistEditMode = !appState.isPlaylistEditMode; renderPlaylists(); });
+                dom.viewAllBtn.addEventListener('click', () => { renderGallery(appState.allMedia, 'All Media'); dom.sidebar.classList.remove('open'); });
+                dom.settingsBtn.addEventListener('click', showSettingsModal);
+                dom.adminPanelBtn.addEventListener('click', showAdminPanel);
+                dom.socialFeedBtn.onclick = () => switchFeed('social');
+                dom.localFeedBtn.onclick = () => switchFeed('local');
+                dom.folderFeedBtn.onclick = () => switchFeed('folder');
+                document.addEventListener('fullscreenchange', () => { if (appState.activeCard) applyTransforms(appState.activeCard.querySelector('video')); });
+                document.addEventListener('keydown', handleKeyboardShortcuts);
+            }
+
+            function handleKeyboardShortcuts(e) {
+                if (dom.videoContainer.classList.contains('hidden') || !appState.activeCard) return;
+                const videoElement = appState.activeCard.querySelector('video');
+                if (!videoElement) return;
+                const shortcuts = appState.settings.shortcuts;
+                const key = e.key === ' ' ? 'Space' : e.key;
+                
+                // Find which shortcut action matches the pressed key
+                const action = Object.keys(shortcuts).find(act => shortcuts[act].toLowerCase() === key.toLowerCase());
+
+                if (!action) return;
+                e.preventDefault();
+
+                switch(action) {
+                    case 'playPause': togglePlayPause(videoElement, appState.activeCard.querySelector('.play-pause-btn')); break;
+                    case 'lock': appState.settings.isLockModeActive = !appState.settings.isLockModeActive; saveSettings(); applyGlobalLockMode(); break;
+                    case 'fullscreen': toggleFullScreen(); break;
+                    case 'rotate': cycleOrientation(); break;
+                    case 'save': appState.activeCard.querySelector('.save-btn')?.click(); break;
+                    case 'addPlaylist': appState.activeCard.querySelector('.add-playlist-btn')?.click(); break;
+                    case 'zoomIn': changeZoom(0.2); break;
+                    case 'zoomOut': changeZoom(-0.2); break;
+                    case 'panUp': if(appState.settings.currentZoom > 1) panVideo(0, 10); break;
+                    case 'panDown': if(appState.settings.currentZoom > 1) panVideo(0, -10); break;
+                    case 'panLeft': if(appState.settings.currentZoom > 1) panVideo(10, 0); break;
+                    case 'panRight': if(appState.settings.currentZoom > 1) panVideo(-10, 0); break;
+                    case 'nextVideo': appState.activeCard.nextElementSibling?.scrollIntoView({ behavior: 'smooth' }); break;
+                    case 'prevVideo': appState.activeCard.previousElementSibling?.scrollIntoView({ behavior: 'smooth' }); break;
+                    case 'seekBackward': videoElement.currentTime = Math.max(0, videoElement.currentTime - 5); showSeekIndicator(appState.activeCard, '-5s'); break;
+                    case 'seekForward': videoElement.currentTime = Math.min(videoElement.duration, videoElement.currentTime + 5); showSeekIndicator(appState.activeCard, '+5s'); break;
+                }
+            }
+
+            // --- Feed Management ---
+            function switchFeed(feedType) {
+                appState.currentFeed = feedType;
+                updateFeedSwitcherUI();
+                let videosToPlay = [];
+                if (feedType === 'social') videosToPlay = appState.allMedia.filter(m => appState.allUsers.map(u=>u.id).includes(m.userId) && m.type === 'video');
+                else if (feedType === 'local') videosToPlay = appState.allMedia.filter(m => m.userId === 'local-user' && m.type === 'video');
+                else if (feedType === 'folder') videosToPlay = appState.folderFileHandles;
+                appState.currentlyDisplayedVideos = videosToPlay;
+                renderVideos(videosToPlay, 0);
+            }
+
+            function updateFeedSwitcherUI() {
+                const { socialFeedBtn, localFeedBtn, folderFeedBtn } = dom;
+                const activeClasses = ['bg-white', 'text-black'];
+                const inactiveClasses = ['text-white', 'bg-transparent'];
+                folderFeedBtn.classList.toggle('hidden', !appState.directoryHandle);
+                [socialFeedBtn, localFeedBtn, folderFeedBtn].forEach(btn => btn.classList.remove(...activeClasses, ...inactiveClasses));
+                if (appState.currentFeed === 'social') { socialFeedBtn.classList.add(...activeClasses); localFeedBtn.classList.add(...inactiveClasses); if(appState.directoryHandle) folderFeedBtn.classList.add(...inactiveClasses); }
+                else if (appState.currentFeed === 'local') { localFeedBtn.classList.add(...activeClasses); socialFeedBtn.classList.add(...inactiveClasses); if(appState.directoryHandle) folderFeedBtn.classList.add(...inactiveClasses); }
+                else if (appState.currentFeed === 'folder') { folderFeedBtn.classList.add(...activeClasses); socialFeedBtn.classList.add(...inactiveClasses); localFeedBtn.classList.add(...inactiveClasses); }
+            }
+
+            // --- ReelsPlayer (Folder Play) Logic ---
+            async function selectAndPlayFromFolder() {
+                if (!window.showDirectoryPicker) { showToast("Your browser does not support this feature.", "error"); return; }
+                try {
+                    const handle = await window.showDirectoryPicker();
+                    appState.directoryHandle = handle;
+                    appState.folderFileHandles = [];
+                    appState.folderFileIterator = handle.values();
+                    const existingIndex = appState.recentFolders.findIndex(f => f.name === handle.name);
+                    if (existingIndex !== -1) { const [folder] = appState.recentFolders.splice(existingIndex, 1); appState.recentFolders.unshift(folder); }
+                    else { appState.recentFolders.unshift(handle); }
+                    if (appState.recentFolders.length > 5) appState.recentFolders.pop();
+                    renderRecentFolders();
+                    dom.sidebar.classList.remove('open');
+                    showToast(`Loading videos from "${handle.name}"...`);
+                    await loadMoreFolderFiles();
+                    switchFeed('folder');
+                } catch (err) {
+                    if (err.name !== 'AbortError') { console.error("Error picking directory:", err); showToast("Could not access the directory.", "error"); }
+                }
+            }
+
+            async function loadMoreFolderFiles() {
+                if (appState.isLoadingMoreFolderFiles || !appState.folderFileIterator) return;
+                appState.isLoadingMoreFolderFiles = true;
+                const newHandles = [];
+                const BATCH_SIZE = 20;
+                let loadedCount = 0;
+                while(loadedCount < BATCH_SIZE) {
+                    const result = await appState.folderFileIterator.next();
+                    if (result.done) { appState.folderFileIterator = null; break; }
+                    const entry = result.value;
+                    if (entry.kind === 'file' && entry.name.match(/\.(mp4|mov|webm|ogv|avi)$/i)) {
+                       const mediaData = { id: `folder-${entry.name}`, description: entry.name, fileHandle: entry, type: 'video', thumbnailUrl: null };
+                       newHandles.push(mediaData);
+                       loadedCount++;
+                    }
+                }
+                if (newHandles.length > 0) {
+                    appState.folderFileHandles.push(...newHandles);
+                    const fragment = document.createDocumentFragment();
+                    newHandles.forEach(handle => fragment.appendChild(createVideoCard(handle)));
+                    dom.videoContainer.appendChild(fragment);
+                    // No need to re-observe here, as the observer is on the container and handles dynamic content
+                }
+                appState.isLoadingMoreFolderFiles = false;
+            }
+
+            // --- Intersection Observer ---
+            function setupIntersectionObserver() {
+                const options = { root: dom.videoContainer, threshold: 0.6 };
+                appState.intersectionObserver = new IntersectionObserver(async (entries) => {
+                    for(const entry of entries) {
+                        const video = entry.target.querySelector('video');
+                        const playButton = entry.target.querySelector('.play-pause-btn');
+                        if (!video) continue;
+                        if (entry.isIntersecting) {
+                            appState.activeCard = entry.target;
+                            const videoId = entry.target.getAttribute('data-video-id');
+                            const videoData = appState.currentlyDisplayedVideos.find(v => v.id === videoId);
+                            if (!video.src || video.src.startsWith('blob:null')) {
+                                let url;
+                                if (videoData.blob) url = URL.createObjectURL(videoData.blob);
+                                else if (videoData.fileHandle) { const file = await videoData.fileHandle.getFile(); url = URL.createObjectURL(file); }
+                                else url = videoData.url;
+                                if (url) { video.src = url; appState.activeVideoObjectURLs.set(videoId, url); }
+                            }
+                            updateAmbientBackground(videoData);
+                            video.play().then(() => { if (playButton) playButton.innerHTML = ICONS.PAUSE; }).catch(() => { if (playButton) playButton.innerHTML = ICONS.PLAY; });
+                            if (appState.currentFeed === 'folder') {
+                                const cardIndex = Array.from(entry.target.parentElement.children).indexOf(entry.target);
+                                if (cardIndex >= appState.folderFileHandles.length - 5) loadMoreFolderFiles();
+                            }
+                        } else {
+                            if (appState.activeCard === entry.target) appState.activeCard = null;
+                            video.pause();
+                            if (playButton) playButton.innerHTML = ICONS.PLAY;
+                            const videoId = entry.target.getAttribute('data-video-id');
+                            if (appState.activeVideoObjectURLs.has(videoId)) {
+                                const urlToRevoke = appState.activeVideoObjectURLs.get(videoId);
+                                if(urlToRevoke.startsWith('blob:')) {
+                                    URL.revokeObjectURL(urlToRevoke);
+                                    appState.activeVideoObjectURLs.delete(videoId);
+                                    video.src = ''; video.removeAttribute('src');
+                                }
+                            }
+                        }
+                    }
+                }, options);
+                document.querySelectorAll('.video-card').forEach(card => appState.intersectionObserver.observe(card));
+            }
+
+            // --- Initial Load ---
+            function insertSidebarIcons() {
+                dom.playFromFolderBtn.insertAdjacentHTML('afterbegin', ICONS.FOLDER);
+                dom.addToLocalFeedBtn.insertAdjacentHTML('afterbegin', ICONS.UPLOAD);
+                dom.viewAllBtn.insertAdjacentHTML('afterbegin', ICONS.GALLERY);
+                dom.createPlaylistBtn.insertAdjacentHTML('afterbegin', ICONS.PLUS_CIRCLE);
+            }
+
+            async function init() {
+                await loadData();
+                insertSidebarIcons();
+                applyTheme();
+                applyAmbientMode();
+                applyMuteState();
+                applyAutoScrollState();
+                dom.appLoader.classList.add('hidden');
+                if (appState.settings.defaultView === 'feed') switchFeed(appState.currentFeed);
+                else renderGallery(appState.allMedia, 'All Media');
+                renderPlaylists();
+                renderRecentFolders();
+                setupEventListeners();
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
